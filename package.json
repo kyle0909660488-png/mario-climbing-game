@@ -1,0 +1,34 @@
+﻿{
+  "name": "mario-climbing-game",
+  "version": "1.0.0",
+  "description": "一個以瑪莉歐為靈感的垂直攀爬遊戲",
+  "main": "index.html",
+  "scripts": {
+    "start": "python -m http.server 8000",
+    "dev": "live-server .",
+    "build": "echo 'Build process not implemented yet'",
+    "test": "echo 'Tests not implemented yet'"
+  },
+  "keywords": [
+    "game",
+    "mario",
+    "climbing",
+    "html5",
+    "canvas",
+    "javascript",
+    "platformer"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "live-server": "^1.2.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/yourusername/mario-climbing-game.git"
+  },
+  "bugs": {
+    "url": "https://github.com/yourusername/mario-climbing-game/issues"
+  },
+  "homepage": "https://github.com/yourusername/mario-climbing-game#readme"
+}
