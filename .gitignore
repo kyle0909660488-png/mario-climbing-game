@@ -1,0 +1,130 @@
+# Python 編譯檔案
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 分發與打包
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# PyInstaller
+*.manifest
+*.spec
+
+# 單元測試
+htmlcov/
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# 翻譯
+*.mo
+*.pot
+
+# Django
+*.log
+local_settings.py
+db.sqlite3
+
+# Flask
+instance/
+.webassets-cache
+
+# Scrapy
+.scrapy
+
+# Sphinx 文檔
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# 環境變數檔案
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder 專案設定
+.spyderproject
+.spyproject
+
+# Rope 專案設定
+.ropeproject
+
+# mkdocs 文檔
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# IDE 設定檔案
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 作業系統生成檔案
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Windows 系統檔案
+*.exe
+*.lnk
+
+# 遊戲特定檔案
+saves/
+screenshots/
+logs/
+*.save
+*.log
+
+# 臨時檔案
+temp/
+tmp/
+*.tmp
+*.temp
