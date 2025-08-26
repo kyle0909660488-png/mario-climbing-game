@@ -431,9 +431,9 @@ class GameUI:
         \n
         在螢幕底部顯示基本操作說明\n
         """
-        hints = ["WASD: 移動/跳躍/蹲下", "C: 攻擊", "ESC: 暫停"]
+        hints = ["WASD: 移動/跳躍/蹲下", "R: 加速衝刺", "C: 攻擊", "ESC: 暫停"]
 
-        hint_y = self.screen_height - 60
+        hint_y = self.screen_height - 80  # 調整位置給更多提示留空間
         for i, hint in enumerate(hints):
             hint_text = self.fonts["tiny"].render(
                 hint, True, self.ui_colors["secondary"]

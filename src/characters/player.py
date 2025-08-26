@@ -66,11 +66,15 @@ class Player:
     is_crouching (bool): 是否處於蹲下狀態\n
     \n
     操作說明:\n
-    - W: 跳躍（有二段跳能力的角色可以在空中再跳一次）\n
+    - W: 跳躍（有二段跳能力的角色可以在空中再跳一次，蹲下時無法跳躍）\n
     - A: 向左移動\n
-    - S: 蹲下（減少碰撞體積，某些陷阱可能躲過）\n
+    - S: 蹲下（減少碰撞體積，某些陷阱可能躲過，蹲下時無法跳躍）\n
     - D: 向右移動\n
     - C: 攻擊（近戰攻擊，對附近敵人造成傷害）\n
+    - R: 加速衝刺（提高移動速度，配合跳躍可增加跳躍高度）\n
+    \n
+    組合技能:\n
+    - R+W: 加速跳躍，跳躍高度提升 30%\n
     """
 
     def __init__(self, start_x: float, start_y: float, character_type: int = 0):
@@ -112,6 +116,12 @@ class Player:
         self.is_on_ground = False
         self.can_double_jump = self.has_double_jump_ability  # 每次落地重置
         self.is_crouching = False
+        self.is_sprinting = False  # 是否正在加速衝刺
+
+        # 速度調節係數
+        self.base_speed = self.speed  # 保存原始速度
+        self.sprint_multiplier = 1.5  # 加速時的速度倍率
+        self.jump_boost_multiplier = 1.3  # 加速跳躍時的額外高度倍率
 
         # 攻擊狀態
         self.attack_cooldown = 0  # 攻擊冷卻時間，避免連續攻擊
@@ -131,20 +141,33 @@ class Player:
         \n
         參數:\n
         keys (dict): pygame.key.get_pressed() 回傳的按鍵狀態字典\n
+        \n
+        新增控制:\n
+        - R: 加速衝刺（提高移動速度）\n
+        - 加速+跳躍組合技：跳躍高度提升\n
+        - 蹲下時無法跳躍\n
         """
+        # 檢查是否正在加速（R 鍵）
+        self.is_sprinting = keys[pygame.K_r]
+
+        # 根據加速狀態調整移動速度
+        current_speed = self.base_speed
+        if self.is_sprinting:
+            current_speed = self.base_speed * self.sprint_multiplier
+
         # 左右移動（A 和 D 鍵）
         if keys[pygame.K_a]:
-            self.velocity_x = -self.speed  # 向左移動
+            self.velocity_x = -current_speed  # 向左移動
         elif keys[pygame.K_d]:
-            self.velocity_x = self.speed  # 向右移動
+            self.velocity_x = current_speed  # 向右移動
         else:
             # 沒按移動鍵就逐漸停下來（模擬摩擦力）
             self.velocity_x *= 0.8
             if abs(self.velocity_x) < 0.1:  # 速度太小就直接設為0
                 self.velocity_x = 0
 
-        # 跳躍（W 鍵）
-        if keys[pygame.K_w]:
+        # 跳躍（W 鍵）- 蹲下時無法跳躍
+        if keys[pygame.K_w] and not self.is_crouching:
             self._try_jump()
 
         # 蹲下（S 鍵）
@@ -173,10 +196,18 @@ class Player:
         - 在地面上：直接跳躍\n
         - 在空中且有二段跳能力：執行二段跳\n
         - 其他情況：無法跳躍\n
+        \n
+        組合技能：\n
+        - 加速+跳躍：跳躍高度提升 30%\n
         """
+        # 計算跳躍力量，加速時有額外加成
+        jump_force = self.jump_power
+        if self.is_sprinting:
+            jump_force = self.jump_power * self.jump_boost_multiplier
+
         if self.is_on_ground:
             # 在地面上，直接跳躍
-            self.velocity_y = -self.jump_power  # 負數表示向上
+            self.velocity_y = -jump_force  # 負數表示向上
             self.is_on_ground = False
             # 重置二段跳能力
             if self.has_double_jump_ability:
@@ -184,7 +215,9 @@ class Player:
 
         elif self.can_double_jump and self.has_double_jump_ability:
             # 在空中且有二段跳能力，執行二段跳
-            self.velocity_y = -self.jump_power * 0.8  # 二段跳力量稍微弱一點
+            # 二段跳力量稍微弱一點，但同樣受加速影響
+            second_jump_force = jump_force * 0.8
+            self.velocity_y = -second_jump_force
             self.can_double_jump = False  # 用掉二段跳機會
 
     def _perform_attack(self):
@@ -397,18 +430,42 @@ class Player:
         screen_x = int(self.x)
         screen_y = int(self.y - camera_y + screen.get_height() // 2)
 
-        # 角色顏色（受傷時會閃爍）
+        # 角色顏色（受傷時會閃爍，加速時會變亮）
         color = self.color
+
+        # 受傷閃爍效果
         if self.invulnerability_time > 0 and (self.invulnerability_time // 5) % 2:
             # 無敵時間內每 5 幀閃爍一次（變成半透明）
             color = tuple(c // 2 for c in self.color)
+
+        # 加速時的亮度增強效果
+        if self.is_sprinting:
+            color = tuple(min(255, c + 50) for c in color)  # 每個顏色通道增加亮度
 
         # 繪製角色矩形（蹲下時高度縮小）
         height = self.height if not self.is_crouching else self.height // 2
         pygame.draw.rect(screen, color, (screen_x, screen_y, self.width, height))
 
-        # 繪製角色邊框
-        pygame.draw.rect(screen, (0, 0, 0), (screen_x, screen_y, self.width, height), 2)
+        # 繪製角色邊框（加速時邊框變粗）
+        border_width = 3 if self.is_sprinting else 2
+        pygame.draw.rect(
+            screen, (0, 0, 0), (screen_x, screen_y, self.width, height), border_width
+        )
+
+        # 加速時繪製速度線條效果
+        if self.is_sprinting and abs(self.velocity_x) > 0.5:
+            # 在角色後方畫幾條速度線
+            line_direction = -1 if self.velocity_x > 0 else 1  # 速度線方向相反
+            for i in range(3):
+                line_x = screen_x + self.width // 2 + (line_direction * (15 + i * 5))
+                line_y1 = screen_y + 5 + i * 3
+                line_y2 = screen_y + height - 5 - i * 3
+
+                # 確保線條在螢幕範圍內
+                if 0 <= line_x < screen.get_width():
+                    pygame.draw.line(
+                        screen, (255, 255, 255), (line_x, line_y1), (line_x, line_y2), 2
+                    )
 
         # 如果正在攻擊，繪製攻擊範圍
         if self.is_attacking:

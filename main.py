@@ -91,8 +91,9 @@ class MarioClimbingGame:
         - 暫停狀態：繼續遊戲、返回選單\n
         \n
         按鍵對應:\n
-        - ESC: 暫停/返回選單\n
+        - ESC: 暫停/離開遊戲\n
         - WASD: 玩家移動（遊戲中）\n
+        - R: 加速衝刺（遊戲中）\n
         - C: 攻擊（遊戲中）\n
         - 方向鍵: 角色選擇（選單中）\n
         - ENTER: 確認選擇（選單中）\n
@@ -108,7 +109,9 @@ class MarioClimbingGame:
                     if self.game_state == "playing":
                         self.game_state = "paused"  # 遊戲中按 ESC 就暫停
                     elif self.game_state == "paused":
-                        self.game_state = "menu"  # 暫停中按 ESC 回到選單
+                        self.running = False  # 暫停中按 ESC 直接離開遊戲
+                    elif self.game_state == "menu":
+                        self.running = False  # 選單中按 ESC 也可以離開遊戲
 
                 # 選單狀態的按鍵處理
                 elif self.game_state == "menu":
