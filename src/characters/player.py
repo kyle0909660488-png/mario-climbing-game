@@ -126,6 +126,7 @@ class Player:
         # 攻擊狀態
         self.attack_cooldown = 0  # 攻擊冷卻時間，避免連續攻擊
         self.is_attacking = False
+        self.attack_just_started = False  # 標記攻擊是否剛開始
 
         # 無敵時間（受傷後短暫無法再受傷）
         self.invulnerability_time = 0
@@ -338,6 +339,7 @@ class Player:
         設定攻擊冷卻時間避免連續攻擊\n
         """
         self.is_attacking = True
+        self.attack_just_started = True  # 標記攻擊剛開始
         self.attack_cooldown = 20  # 20 幀的冷卻時間
 
     def update(self, platforms: List, traps: List):
@@ -354,6 +356,9 @@ class Player:
         platforms (List): 當前關卡的平台清單\n
         traps (List): 當前關卡的陷阱清單\n
         """
+        # 重置攻擊剛開始標記（每幀重置，只在攻擊的第一幀為True）
+        self.attack_just_started = False
+
         # 更新各種計時器
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1

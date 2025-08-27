@@ -40,7 +40,7 @@ class LevelManager:
         """
         self.current_level_number = 1
         self.levels = []
-        self.max_level = 5  # 目前設計 5 個關卡
+        self.max_level = 6  # 更新為 6 個關卡，新增第六關 Boss 戰
 
         # 建立所有關卡
         self._create_all_levels()
@@ -67,9 +67,13 @@ class LevelManager:
         level_4 = self._create_level_4()
         self.levels.append(level_4)
 
-        # 第五關：Boss 戰
+        # 第五關：普通挑戰關卡
         level_5 = self._create_level_5()
         self.levels.append(level_5)
+
+        # 第六關：最終 Boss 戰
+        level_6 = self._create_level_6()
+        self.levels.append(level_6)
 
     def _create_level_1(self) -> Level:
         """
@@ -294,9 +298,9 @@ class LevelManager:
 
     def _create_level_5(self) -> Level:
         """
-        建立第五關：Boss 戰\n
+        建立第五關：進階挑戰關卡\n
         \n
-        最終 Boss 關卡，集合所有挑戰元素，多階段戰鬥體驗\n
+        高難度關卡，大量敵人和陷阱，為最終Boss戰做準備\n
         \n
         回傳:\n
         Level: 第五關關卡物件\n
@@ -338,16 +342,17 @@ class LevelManager:
             BasicEnemy(150, 730, patrol_range=100),
             BasicEnemy(1000, 730, patrol_range=100),
             BasicEnemy(600, 730, patrol_range=80),  # 新增地面守衛
-            # 中層防禦線 - 阻礙玩家接近 Boss
+            # 中層防禦線 - 阻礙玩家接近頂部
             BasicEnemy(250, 430, patrol_range=50),
             BasicEnemy(850, 430, patrol_range=50),
             BasicEnemy(150, 630, patrol_range=60),  # 新增側翼守衛
             BasicEnemy(1000, 630, patrol_range=60),  # 新增側翼守衛
-            # Boss 精英護衛 - Boss 周圍的強化敵人
-            BasicEnemy(400, 330, patrol_range=40),  # Boss 平台左側護衛
-            BasicEnemy(700, 330, patrol_range=40),  # Boss 平台右側護衛
-            # 主要 Boss 敵人 - 最終挑戰
-            Boss(550, 320, boss_type="fire_lord"),  # 調整 Boss 位置到平台上
+            # 精英護衛 - 關卡最終挑戰
+            BasicEnemy(400, 330, patrol_range=40),  # 平台左側護衛
+            BasicEnemy(700, 330, patrol_range=40),  # 平台右側護衛
+            # 新增更多敵人增加難度
+            BasicEnemy(350, 530, patrol_range=60),  # 移動平台附近的敵人
+            BasicEnemy(900, 230, patrol_range=70),  # 高處狙擊手
         ]
 
         return Level(
@@ -358,7 +363,66 @@ class LevelManager:
             player_start_x=600,
             player_start_y=700,
             level_completion_height=30,
-            background_color=(139, 0, 139),  # 紫色（Boss 戰氣氛）
+            background_color=(25, 25, 112),  # 深夜藍（保持挑戰關卡的氛圍）
+        )
+
+    def _create_level_6(self) -> Level:
+        """
+        建立第六關：最終 Boss 戰\n
+        \n
+        終極決戰關卡：玩家在地面與最終Boss正面對決\n
+        配備護衛雜兵和多層平台，提供完整的戰鬥體驗\n
+        \n
+        回傳:\n
+        Level: 第六關關卡物件\n
+        """
+        # Boss 戰鬥場地 - 適合地面決戰的平台配置
+        platforms = [
+            # 主要戰鬥場地（地面） - Boss 與玩家的決戰舞台
+            Platform(0, 750, 1200, 50),
+            # 戰術高台 - 提供玩家逃避和狙擊手位置
+            Platform(300, 600, 200, 20),  # 左側戰術平台
+            Platform(700, 600, 200, 20),  # 右側戰術平台
+            # 中央觀察台 - 高處的戰術制高點
+            Platform(450, 400, 300, 25),  # 中央主平台（稍微加厚）
+            # 跳躍輔助平台 - 幫助玩家在地面和高台間移動
+            Platform(100, 500, 120, 15),  # 左側跳台
+            Platform(980, 500, 120, 15),  # 右側跳台
+            # 狙擊平台 - 高處的小型平台
+            Platform(150, 300, 100, 15),  # 左高台
+            Platform(950, 300, 100, 15),  # 右高台
+            # 終極高台 - 最後的戰術位置
+            Platform(500, 200, 200, 20),  # 中央高台
+            # 勝利平台 - Boss 擊敗後的目標點（降低高度讓戰鬥更集中在地面）
+            Platform(450, 80, 300, 40),  # 勝利台
+        ]
+
+        # 第六關仍然沒有陷阱，專注於敵人戰鬥
+        traps = []
+
+        # Boss 戰和雜兵 - 地面決戰配置
+        enemies = [
+            # 終極 Boss - 在地面與玩家正面對決
+            Boss(200, 720, boss_type="ultimate_lord"),  # 地面左側位置
+            # Boss 護衛雜兵 - 增加戰鬥複雜度
+            BasicEnemy(800, 720, patrol_range=150),  # 地面右側護衛
+            BasicEnemy(500, 720, patrol_range=100),  # 地面中央護衛
+            # 高台狙擊手 - 從上方提供火力壓制
+            BasicEnemy(350, 580, patrol_range=80),  # 左側平台狙擊手
+            BasicEnemy(750, 580, patrol_range=80),  # 右側平台狙擊手
+            # 機動部隊 - 中層平台的游擊手
+            BasicEnemy(525, 370, patrol_range=60),  # 中央平台游擊手
+        ]
+
+        return Level(
+            level_number=6,
+            platforms=platforms,
+            traps=traps,
+            enemies=enemies,
+            player_start_x=1000,  # 玩家從地面右側開始，面對左側的Boss
+            player_start_y=700,
+            level_completion_height=60,  # 調整完成高度，配合新的勝利平台
+            background_color=(75, 0, 130),  # 深紫色（最終 Boss 戰氣氛）
         )
 
     def get_current_level(self) -> Level:

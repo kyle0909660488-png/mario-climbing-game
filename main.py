@@ -41,7 +41,7 @@ class MarioClimbingGame:
     screen (pygame.Surface): 主要顯示畫面\n
     clock (pygame.time.Clock): 遊戲時鐘，控制幀率\n
     running (bool): 遊戲是否持續運行\n
-    game_state (str): 當前遊戲狀態（'menu', 'playing', 'paused', 'game_over'）\n
+    game_state (str): 當前遊戲狀態（'menu', 'playing', 'paused', 'game_over', 'victory'）\n
     player (Player): 玩家角色物件\n
     level_manager (LevelManager): 關卡管理器\n
     ui (GameUI): 使用者介面管理器\n
@@ -148,6 +148,22 @@ class MarioClimbingGame:
                     elif self.game_state == "paused":
                         if event.key == pygame.K_SPACE:
                             self.game_state = "playing"  # 空白鍵繼續遊戲
+
+                    # 勝利畫面的按鍵處理
+                    elif self.game_state == "victory":
+                        if event.key == pygame.K_SPACE:
+                            self.restart_game()  # 重新開始遊戲
+                        elif event.key == pygame.K_ESCAPE:
+                            self.game_state = "menu"  # 回到主選單
+
+                    # 測試功能：快速跳關（開發用）
+                    if event.key == pygame.K_F6 and self.game_state == "playing":
+                        # 跳到第六關進行Boss戰測試
+                        self.level_manager.current_level_number = 6
+                        new_level = self.level_manager.get_current_level()
+                        self.player.x = new_level.player_start_x
+                        self.player.y = new_level.player_start_y
+                        self.camera_y = self.player.y - SCREEN_HEIGHT // 2
 
     def start_game_with_character(self, character_type: int):
         """
@@ -379,15 +395,44 @@ class MarioClimbingGame:
 
         # 如果玩家到達關卡頂部，就進入下一關
         if self.player.y < current_level.level_completion_height:
-            self.level_manager.advance_to_next_level()
+            # 檢查是否為最終關卡（第六關）
+            if self.level_manager.current_level_number == 6:
+                # 第六關：檢查是否所有 Boss 都被擊敗了
+                if self._all_bosses_defeated():
+                    self.game_state = "victory"
+                    return
+                else:
+                    # 如果還有 Boss 存活，不允許完成關卡，將玩家推回
+                    self.player.y = current_level.level_completion_height + 50
+                    return
 
-            # 重新定位玩家到新關卡的起始位置
-            new_level = self.level_manager.get_current_level()
-            self.player.x = new_level.player_start_x
-            self.player.y = new_level.player_start_y
+            # 非最終關卡的正常切換邏輯
+            success = self.level_manager.advance_to_next_level()
+            if success:
+                # 重新定位玩家到新關卡的起始位置
+                new_level = self.level_manager.get_current_level()
+                self.player.x = new_level.player_start_x
+                self.player.y = new_level.player_start_y
 
-            # 立即更新相機位置到新位置，避免切換關卡時的跳躍
-            self.camera_y = self.player.y - SCREEN_HEIGHT // 2
+                # 立即更新相機位置到新位置，避免切換關卡時的跳躍
+                self.camera_y = self.player.y - SCREEN_HEIGHT // 2
+
+    def _all_bosses_defeated(self) -> bool:
+        """
+        檢查所有 Boss 是否都被擊敗\n
+        \n
+        回傳:\n
+        bool: 是否所有 Boss 都已被擊敗\n
+        """
+        current_level = self.level_manager.get_current_level()
+
+        # 檢查關卡中是否還有存活的 Boss
+        from src.enemies.boss import Boss
+
+        for enemy in current_level.enemies:
+            if isinstance(enemy, Boss) and enemy.health > 0:
+                return False
+        return True
 
     def _check_game_over(self):
         """
@@ -459,6 +504,10 @@ class MarioClimbingGame:
         elif self.game_state == "game_over":
             # 繪製遊戲結束畫面
             self.ui.draw_game_over(self.screen)
+
+        elif self.game_state == "victory":
+            # 繪製勝利畫面
+            self.ui.draw_victory_screen(self.screen)
 
         # 更新顯示（把準備好的畫面顯示到螢幕）
         pygame.display.flip()

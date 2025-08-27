@@ -88,7 +88,7 @@ class Boss(BaseEnemy):
         self.movement_timer = 0
         self.movement_pattern = "patrol"  # patrol, chase, retreat, cast
 
-    def update(self, player, platforms, screen_width, screen_height):
+    def update(self, player):
         """
         更新 Boss 狀態\n
         \n
@@ -96,9 +96,6 @@ class Boss(BaseEnemy):
         \n
         參數:\n
         player: 玩家物件\n
-        platforms: 平台清單\n
-        screen_width (int): 螢幕寬度\n
-        screen_height (int): 螢幕高度\n
         """
         # 更新技能冷卻時間
         self._update_skill_cooldowns()
@@ -114,11 +111,11 @@ class Boss(BaseEnemy):
         if self.is_casting_skill:
             self._update_skill_casting(player)
 
-        # 更新物理狀態
-        super().update(player, platforms, screen_width, screen_height)
+        # 更新物理狀態（使用基類的 update 方法）
+        super().update(player)
 
         # 更新小兵
-        self._update_minions(player, platforms, screen_width, screen_height)
+        self._update_minions(player)
 
     def _update_skill_cooldowns(self):
         """
@@ -195,6 +192,78 @@ class Boss(BaseEnemy):
             self._chase_behavior(player)
         elif self.state == "attack":
             self._attack_behavior(player)
+
+    def _patrol_behavior(self):
+        """
+        Boss 巡邏行為\n
+        \n
+        Boss 在指定範圍內緩慢移動，觀察周圍環境\n
+        """
+        # Boss 巡邏速度比普通敵人慢一些，更具威脅感
+        patrol_speed = self.speed * 0.3
+
+        # 到達巡邏邊界時轉向
+        if self.x <= self.patrol_center_x - self.patrol_range:
+            self.patrol_direction = 1
+        elif self.x >= self.patrol_center_x + self.patrol_range:
+            self.patrol_direction = -1
+
+        # 設定巡邏速度
+        self.velocity_x = self.patrol_direction * patrol_speed
+
+    def _chase_behavior(self, player):
+        """
+        Boss 追蹤行為\n
+        \n
+        Boss 朝玩家方向移動，但保持一定的策略性\n
+        \n
+        參數:\n
+        player: 玩家物件\n
+        """
+        # Boss 追蹤時會根據階段調整速度
+        chase_speed = self.speed * (0.8 + 0.1 * self.phase)
+
+        # 計算到玩家的水平距離
+        dx = player.x - self.x
+
+        # 朝玩家方向移動，但不會過於激進
+        if abs(dx) > 10:  # 避免過度微調
+            if dx > 0:
+                self.velocity_x = chase_speed
+            else:
+                self.velocity_x = -chase_speed
+        else:
+            self.velocity_x = 0
+
+        # Boss 在追蹤時會稍微跳躍，增加威脅感
+        if abs(dx) > 60 and self.is_on_ground and random.random() < 0.02:
+            self.velocity_y = -8  # 小跳躍
+
+    def _attack_behavior(self, player):
+        """
+        Boss 攻擊行為\n
+        \n
+        Boss 的基礎攻擊行為，包含前搖和後搖\n
+        \n
+        參數:\n
+        player: 玩家物件\n
+        """
+        # Boss 攻擊時會停止移動
+        self.velocity_x = 0
+
+        # 面向玩家
+        if player.x > self.x:
+            self.facing_direction = 1
+        else:
+            self.facing_direction = -1
+
+        # 如果攻擊冷卻結束，執行攻擊
+        if self.attack_cooldown <= 0:
+            attack_result = self.attack_player(player)
+            self.attack_cooldown = self.max_attack_cooldown
+
+            # 攻擊後稍微後退
+            self.velocity_x = -self.facing_direction * self.speed * 0.5
 
     def _should_use_skill(self) -> bool:
         """
@@ -395,18 +464,15 @@ class Boss(BaseEnemy):
         else:
             self.charge_attack_active = False
 
-    def _update_minions(self, player, platforms, screen_width, screen_height):
+    def _update_minions(self, player):
         """
         更新所有小兵狀態\n
         \n
         參數:\n
         player: 玩家物件\n
-        platforms: 平台清單\n
-        screen_width (int): 螢幕寬度\n
-        screen_height (int): 螢幕高度\n
         """
         for minion in self.minions[:]:  # 使用複本避免修改時出錯
-            minion.update(player, platforms, screen_width, screen_height)
+            minion.update(player)
 
             # 移除死亡的小兵
             if minion.health <= 0:
@@ -698,7 +764,7 @@ class BossMinion(BaseEnemy):
         # 小兵顏色（較淡的紅色）
         self.color = (100, 50, 50)
 
-    def update(self, player, platforms, screen_width, screen_height):
+    def update(self, player):
         """
         更新小兵狀態\n
         \n
@@ -721,7 +787,7 @@ class BossMinion(BaseEnemy):
             self.state = "patrol"
 
         # 呼叫父類更新
-        super().update(player, platforms, screen_width, screen_height)
+        super().update(player)
 
     def draw(self, screen, camera_x=0, camera_y=0):
         """

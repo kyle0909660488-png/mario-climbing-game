@@ -95,8 +95,10 @@ class Level:
         for enemy in self.enemies[:]:  # 使用副本避免修改列表時出錯
             enemy.update(player)
 
-            # 檢查敵人是否被玩家攻擊擊敗
-            if player.is_attacking and self._check_player_attack_hit(player, enemy):
+            # 檢查敵人是否被玩家攻擊擊敗（只在攻擊剛開始時判定，避免重複傷害）
+            if player.attack_just_started and self._check_player_attack_hit(
+                player, enemy
+            ):
                 enemy.take_damage(player.attack_damage)
 
                 # 敵人死亡時從列表移除

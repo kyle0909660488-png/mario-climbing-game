@@ -510,3 +510,70 @@ class GameUI:
             center=(self.screen_width // 2, self.screen_height // 2 + 50)
         )
         screen.blit(retry_text, retry_rect)
+
+    def draw_victory_screen(self, screen: pygame.Surface):
+        """
+        繪製勝利畫面\n
+        \n
+        顯示遊戲勝利訊息和後續選項\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 要繪製到的螢幕表面\n
+        """
+        # 半透明金色遮罩，營造勝利的氛圍
+        overlay = pygame.Surface((self.screen_width, self.screen_height))
+        overlay.set_alpha(180)
+        overlay.fill((50, 30, 0))  # 暖金色調
+        screen.blit(overlay, (0, 0))
+
+        # 勝利標題
+        title_text = self.fonts["title"].render(
+            "恭喜！遊戲完成！", True, (255, 215, 0)  # 金色
+        )
+        title_rect = title_text.get_rect(
+            center=(self.screen_width // 2, self.screen_height // 2 - 80)
+        )
+        screen.blit(title_text, title_rect)
+
+        # 恭喜訊息
+        congrats_text = self.fonts["medium"].render(
+            "你成功擊敗了所有的 Boss！", True, self.ui_colors["primary"]
+        )
+        congrats_rect = congrats_text.get_rect(
+            center=(self.screen_width // 2, self.screen_height // 2 - 20)
+        )
+        screen.blit(congrats_text, congrats_rect)
+
+        # 操作提示
+        restart_text = self.fonts["small"].render(
+            "按 SPACE 重新開始遊戲", True, self.ui_colors["secondary"]
+        )
+        restart_rect = restart_text.get_rect(
+            center=(self.screen_width // 2, self.screen_height // 2 + 30)
+        )
+        screen.blit(restart_text, restart_rect)
+
+        menu_text = self.fonts["small"].render(
+            "按 ESC 返回主選單", True, self.ui_colors["secondary"]
+        )
+        menu_rect = menu_text.get_rect(
+            center=(self.screen_width // 2, self.screen_height // 2 + 60)
+        )
+        screen.blit(menu_text, menu_rect)
+
+        # 繪製一些慶祝效果（簡單的星星）
+        import math
+        import time
+
+        current_time = time.time()
+
+        for i in range(15):
+            # 計算星星的動畫位置
+            angle = (current_time * 2 + i * 0.4) % (2 * math.pi)
+            radius = 50 + 30 * math.sin(current_time * 3 + i)
+
+            star_x = int(self.screen_width // 2 + radius * math.cos(angle))
+            star_y = int(self.screen_height // 2 - 80 + radius * math.sin(angle))
+
+            # 繪製簡單的星星（小圓點）
+            pygame.draw.circle(screen, (255, 215, 0), (star_x, star_y), 3)
