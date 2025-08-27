@@ -8,14 +8,16 @@
 
 - **MarioClimbingGame** (`main.py`): 遊戲主控制器，管理遊戲循環 (handle_events → update → render, 60 FPS)
 - **Player** (`src/characters/player.py`): 角色系統，包含物理運算、輸入處理、套裝技能
-- **LevelManager** (`src/levels/level_manager.py`): 關卡管理，動態生成 5 關挑戰
+- **LevelManager** (`src/levels/level_manager.py`): 關卡管理，動態生成 6 關挑戰（含 Boss 戰）
 - **EquipmentManager** (`src/equipment/equipment_manager.py`): 4 套裝系統，從 1-4 件套效果遞增
+- **EquipmentDropManager** (`src/equipment/equipment_item.py`): 處理裝備掉落和收集邏輯
 
 ### 數據流向
 
 ```
 Input → Player.handle_input() → Physics Update → Collision Detection →
 Equipment Effects → Enemy AI → Trap Updates → Rendering → UI Display
+Enemy Death → EquipmentDropManager.try_drop_item() → Player Pickup → Equipment Effects
 ```
 
 ## 📋 開發規範
@@ -66,6 +68,14 @@ Enemy Death → EquipmentDropManager.try_drop_item() → EquipmentItem
 → Player Pickup → EquipmentManager.add_set_piece() → Effect Updates
 ```
 
+### 處理裝備撿拾
+
+玩家撿拾透過 `EquipmentDropManager.check_pickup()` 自動處理：
+
+- 在 `main.update()` 中每幀檢查撿拾
+- 成功撿拾時自動呼叫 `equipment_manager.add_set_piece()`
+- 物品從場景中移除並更新玩家套裝
+
 ## 🔧 除錯與測試
 
 ### 快速啟動
@@ -86,7 +96,7 @@ python main.py
 
 - **角色 0**: 平衡型 (血量 100, 速度 5, 跳躍 15, 攻擊 20)
 - **角色 1**: 速度型 (血量 80, 速度 8, 跳躍 12, 攻擊 15)
-- **角色 2**: 跳躍型 (血量 90, 速度 4, 跳躍 18, 攻擊 18, 二段跳)
+- **角色 2**: 跳躍型 (血量 90, 速度 4, 跳躍 18, 攻擊 18, **二段跳能力**)
 - **角色 3**: 坦克型 (血量 150, 速度 3, 跳躍 10, 攻擊 25)
 
 ## ⚠️ 重要注意事項
@@ -118,8 +128,15 @@ python main.py
 
 ### Boss 戰機制
 
-- Boss 位於第 5 關，具備多階段攻擊模式
+- Boss 位於第 6 關（不是第 5 關），具備多階段攻擊模式
 - 範圍攻擊、召喚小兵、震波攻擊等特殊技能
 - 血量變化觸發不同 AI 行為模式
+- 100% 掉落率保證獎勵
+
+### 跳躍緩衝系統
+
+- 按下跳躍鍵時提供 8 幀緩衝時間 (`jump_buffer_time = 8`)
+- 提高操作手感，減少「按了沒跳」的情況
+- 配合 `previous_jump_key_pressed` 實現單次觸發
 
 當需要擴展功能時，優先查閱對應的基類和管理器，遵循既有模式可確保系統整合性。
