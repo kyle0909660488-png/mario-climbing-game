@@ -9,7 +9,7 @@ CHARACTER_CONFIGS = {
         "name": "平衡瑪莉歐",
         "max_health": 100,
         "speed": 5,
-        "jump_power": 12,
+        "jump_power": 15,
         "has_double_jump": False,
         "attack_damage": 20,
         "color": (255, 0, 0),  # 紅色
@@ -18,7 +18,7 @@ CHARACTER_CONFIGS = {
         "name": "疾速瑪莉歐",
         "max_health": 80,
         "speed": 8,
-        "jump_power": 10,
+        "jump_power": 12,
         "has_double_jump": False,
         "attack_damage": 15,
         "color": (0, 255, 0),  # 綠色
@@ -27,7 +27,7 @@ CHARACTER_CONFIGS = {
         "name": "跳跳瑪莉歐",
         "max_health": 90,
         "speed": 4,
-        "jump_power": 15,
+        "jump_power": 18,
         "has_double_jump": True,
         "attack_damage": 18,
         "color": (0, 0, 255),  # 藍色
@@ -36,7 +36,7 @@ CHARACTER_CONFIGS = {
         "name": "坦克瑪莉歐",
         "max_health": 150,
         "speed": 3,
-        "jump_power": 8,
+        "jump_power": 10,
         "has_double_jump": False,
         "attack_damage": 25,
         "color": (128, 0, 128),  # 紫色
@@ -66,15 +66,15 @@ class Player:
     is_crouching (bool): 是否處於蹲下狀態\n
     \n
     操作說明:\n
-    - W: 跳躍（有二段跳能力的角色可以在空中再跳一次，蹲下時無法跳躍）\n
-    - A: 向左移動\n
-    - S: 蹲下（減少碰撞體積，某些陷阱可能躲過，蹲下時無法跳躍）\n
-    - D: 向右移動\n
+    - W/空白鍵: 跳躍（有二段跳能力的角色可以在空中再跳一次，蹲下時無法跳躍）\n
+    - A/左方向鍵: 向左移動\n
+    - S/下方向鍵: 蹲下（減少碰撞體積，某些陷阱可能躲過，蹲下時無法跳躍）\n
+    - D/右方向鍵: 向右移動\n
     - C: 攻擊（近戰攻擊，對附近敵人造成傷害）\n
     - R: 加速衝刺（提高移動速度，配合跳躍可增加跳躍高度）\n
     \n
     組合技能:\n
-    - R+W: 加速跳躍，跳躍高度提升 30%\n
+    - R+W/空白鍵: 加速跳躍，跳躍高度提升 30%\n
     """
 
     def __init__(self, start_x: float, start_y: float, character_type: int = 0):
@@ -130,6 +130,10 @@ class Player:
         # 無敵時間（受傷後短暫無法再受傷）
         self.invulnerability_time = 0
 
+        # 按鍵狀態記錄（用於實現單次觸發和跳躍緩衝）
+        self.previous_jump_key_pressed = False
+        self.jump_buffer_time = 0  # 跳躍緩衝時間，提高反應靈敏度
+
         # 裝備管理器引用
         self.equipment_manager = None
 
@@ -138,12 +142,20 @@ class Player:
         處理玩家輸入\n
         \n
         根據按鍵狀態更新玩家的移動意圖，實際移動在 update 方法中處理\n
+        支援多種按鍵配置以避免鍵盤衝突問題\n
         \n
         參數:\n
         keys (dict): pygame.key.get_pressed() 回傳的按鍵狀態字典\n
         \n
+        支援的按鍵配置:\n
+        - 移動: WASD 或 方向鍵\n
+        - 跳躍: W 或 空白鍵（避免與移動鍵衝突）\n
+        - 加速: R 鍵\n
+        - 攻擊: C 鍵\n
+        \n
         新增控制:\n
         - R: 加速衝刺（提高移動速度）\n
+        - 跳躍緩衝機制：按下跳躍鍵後有短暫緩衝時間，提高反應靈敏度\n
         - 加速+跳躍組合技：跳躍高度提升\n
         - 蹲下時無法跳躍\n
         """
@@ -155,10 +167,10 @@ class Player:
         if self.is_sprinting:
             current_speed = self.base_speed * self.sprint_multiplier
 
-        # 左右移動（A 和 D 鍵）
-        if keys[pygame.K_a]:
+        # 左右移動（A/D 鍵 或 左右方向鍵）
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
             self.velocity_x = -current_speed  # 向左移動
-        elif keys[pygame.K_d]:
+        elif keys[pygame.K_d] or keys[pygame.K_RIGHT]:
             self.velocity_x = current_speed  # 向右移動
         else:
             # 沒按移動鍵就逐漸停下來（模擬摩擦力）
@@ -166,12 +178,26 @@ class Player:
             if abs(self.velocity_x) < 0.1:  # 速度太小就直接設為0
                 self.velocity_x = 0
 
-        # 跳躍（W 鍵）- 蹲下時無法跳躍
-        if keys[pygame.K_w] and not self.is_crouching:
-            self._try_jump()
+        # 跳躍（W 鍵或空白鍵）- 改良的反應機制
+        jump_key_pressed = keys[pygame.K_w] or keys[pygame.K_SPACE]
 
-        # 蹲下（S 鍵）
-        self.is_crouching = keys[pygame.K_s]
+        # 跳躍緩衝機制：當玩家按下跳躍鍵時，給予一個短暫的緩衝時間
+        if jump_key_pressed and not self.previous_jump_key_pressed:
+            self.jump_buffer_time = 8  # 8幀的緩衝時間（約0.13秒）
+
+        # 如果有跳躍緩衝且不在蹲下狀態，嘗試跳躍
+        if self.jump_buffer_time > 0 and not self.is_crouching:
+            if self._try_jump():  # 如果跳躍成功，清除緩衝
+                self.jump_buffer_time = 0
+
+        # 更新緩衝時間
+        if self.jump_buffer_time > 0:
+            self.jump_buffer_time -= 1
+
+        self.previous_jump_key_pressed = jump_key_pressed  # 記錄當前幀的按鍵狀態
+
+        # 蹲下（S 鍵或下方向鍵）
+        self.is_crouching = keys[pygame.K_s] or keys[pygame.K_DOWN]
 
         # 攻擊（C 鍵）
         if keys[pygame.K_c] and self.attack_cooldown <= 0:
@@ -190,12 +216,20 @@ class Player:
 
     def _try_jump(self):
         """
-        嘗試執行跳躍\n
+        嘗試執行跳躍（改良的反應機制）\n
         \n
         根據當前狀態決定是否能跳躍：\n
-        - 在地面上：直接跳躍\n
-        - 在空中且有二段跳能力：執行二段跳\n
+        - 在地面上：直接跳躍，重置二段跳能力\n
+        - 在空中且有二段跳能力：執行二段跳，消耗二段跳次數\n
         - 其他情況：無法跳躍\n
+        \n
+        新增跳躍緩衝機制：\n
+        - 當玩家按下跳躍鍵時，提供短暫的緩衝時間\n
+        - 即使按鍵時機稍有偏差，也能成功跳躍\n
+        - 提高操作的靈敏度和容錯性\n
+        \n
+        回傳:\n
+        bool: 跳躍是否成功執行\n
         \n
         組合技能：\n
         - 加速+跳躍：跳躍高度提升 30%\n
@@ -212,6 +246,7 @@ class Player:
             # 重置二段跳能力
             if self.has_double_jump_ability:
                 self.can_double_jump = True
+            return True  # 跳躍成功
 
         elif self.can_double_jump and self.has_double_jump_ability:
             # 在空中且有二段跳能力，執行二段跳
@@ -219,6 +254,9 @@ class Player:
             second_jump_force = jump_force * 0.8
             self.velocity_y = -second_jump_force
             self.can_double_jump = False  # 用掉二段跳機會
+            return True  # 二段跳成功
+
+        return False  # 無法跳躍
 
     def _perform_attack(self):
         """
@@ -346,7 +384,7 @@ class Player:
         )
 
         for trap in traps:
-            if trap.is_active() and player_rect.colliderect(trap.get_collision_rect()):
+            if trap.is_active and player_rect.colliderect(trap.get_collision_rect()):
                 # 觸發陷阱效果
                 damage = trap.get_damage()
                 self.take_damage(damage)

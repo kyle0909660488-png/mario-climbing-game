@@ -92,7 +92,8 @@ class MarioClimbingGame:
         \n
         按鍵對應:\n
         - ESC: 暫停/離開遊戲\n
-        - WASD: 玩家移動（遊戲中）\n
+        - WASD/方向鍵: 玩家移動（遊戲中）\n
+        - 空白鍵: 跳躍（推薦，避免按鍵衝突）\n
         - R: 加速衝刺（遊戲中）\n
         - C: 攻擊（遊戲中）\n
         - 方向鍵: 角色選擇（選單中）\n
@@ -217,6 +218,8 @@ class MarioClimbingGame:
             self.player.attack_cooldown = 0
             self.player.is_attacking = False
             self.player.invulnerability_time = 0
+            self.player.previous_jump_key_pressed = False  # 重置按鍵狀態
+            self.player.jump_buffer_time = 0  # 重置跳躍緩衝
 
         # 重置裝備掉落（保留玩家已裝備的套裝，但清空場上的掉落物）
         self.equipment_drop_manager.clear_all()
