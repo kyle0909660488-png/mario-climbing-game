@@ -81,6 +81,12 @@ class MarioClimbingGame:
         # 選角相關變數
         self.selected_character_index = 0  # 目前選中的角色編號
 
+        # 相機系統變數
+        self.camera_y = 0  # 當前相機 Y 位置
+        self.camera_smoothing = (
+            0.08  # 相機平滑跟隨速度（0.05-0.2 之間，數值越小越平滑但反應越慢）
+        )
+
     def handle_events(self):
         """
         處理所有使用者輸入事件\n
@@ -161,6 +167,9 @@ class MarioClimbingGame:
         start_y = SCREEN_HEIGHT - 100  # 從畫面底部開始
         self.player = Player(start_x, start_y, character_type)
 
+        # 初始化相機位置到玩家位置，避免開始時的跳躍
+        self.camera_y = self.player.y - SCREEN_HEIGHT // 2
+
         # 讓玩家能夠使用裝備系統
         self.player.set_equipment_manager(self.equipment_manager)
 
@@ -220,6 +229,9 @@ class MarioClimbingGame:
             self.player.invulnerability_time = 0
             self.player.previous_jump_key_pressed = False  # 重置按鍵狀態
             self.player.jump_buffer_time = 0  # 重置跳躍緩衝
+
+        # 重置相機位置到玩家新位置，避免重置後的跳躍
+        self.camera_y = self.player.y - SCREEN_HEIGHT // 2
 
         # 重置裝備掉落（保留玩家已裝備的套裝，但清空場上的掉落物）
         self.equipment_drop_manager.clear_all()
@@ -281,6 +293,39 @@ class MarioClimbingGame:
             self._check_level_transition()
             self._check_game_over()
 
+            # 更新相機位置（平滑跟隨玩家）
+            self._update_camera()
+
+    def _update_camera(self):
+        """
+        更新相機位置 - 平滑跟隨玩家\n
+        \n
+        使用線性插值(lerp)讓相機平滑地跟隨玩家移動，\n
+        避免直接跟隨造成的上下抖動問題\n
+        \n
+        相機跟隨算法:\n
+        - 計算目標相機位置（玩家 Y 座標 - 螢幕高度的一半）\n
+        - 加入死區機制，小幅移動不觸發相機跟隨\n
+        - 使用線性插值逐步移動相機到目標位置\n
+        - 平滑係數決定跟隨的反應速度\n
+        """
+        if self.player:
+            # 計算理想的相機位置（讓玩家保持在畫面中央）
+            target_camera_y = self.player.y - SCREEN_HEIGHT // 2
+
+            # 計算相機與目標位置的距離
+            distance = target_camera_y - self.camera_y
+
+            # 設定死區，小幅移動不觸發相機跟隨（減少微抖動）
+            dead_zone = 5  # 像素，可根據需要調整
+
+            # 只有當距離超過死區時才移動相機
+            if abs(distance) > dead_zone:
+                # 使用線性插值平滑移動相機到目標位置
+                # camera_smoothing 越小相機越平滑但反應越慢
+                # camera_smoothing 越大相機反應越快但可能抖動
+                self.camera_y += distance * self.camera_smoothing
+
     def _handle_enemy_drops(self):
         """
         處理敵人死亡時的裝備掉落\n
@@ -329,6 +374,9 @@ class MarioClimbingGame:
             self.player.x = new_level.player_start_x
             self.player.y = new_level.player_start_y
 
+            # 立即更新相機位置到新位置，避免切換關卡時的跳躍
+            self.camera_y = self.player.y - SCREEN_HEIGHT // 2
+
     def _check_game_over(self):
         """
         檢查遊戲結束條件\n
@@ -365,15 +413,18 @@ class MarioClimbingGame:
             # 繪製遊戲中的所有物件
             current_level = self.level_manager.get_current_level()
 
-            # 先畫背景和關卡結構
-            current_level.render(self.screen, self.player.y)  # 傳入玩家高度做視角調整
+            # 先畫背景和關卡結構（使用平滑的相機位置）
+            current_level.render(
+                self.screen, self.camera_y + SCREEN_HEIGHT // 2
+            )  # 傳入玩家高度做視角調整
 
-            # 畫裝備掉落物品
-            camera_y = self.player.y - SCREEN_HEIGHT // 2  # 簡單的攝影機跟隨
-            self.equipment_drop_manager.draw(self.screen, 0, camera_y)
+            # 畫裝備掉落物品（使用平滑的相機位置）
+            self.equipment_drop_manager.draw(self.screen, 0, self.camera_y)
 
-            # 畫玩家角色
-            self.player.render(self.screen, self.player.y)  # 傳入視角偏移
+            # 畫玩家角色（使用平滑的相機位置）
+            self.player.render(
+                self.screen, self.camera_y + SCREEN_HEIGHT // 2
+            )  # 傳入視角偏移
 
             # 畫 UI 資訊（血量、分數、關卡資訊）
             self.ui.draw_game_ui(
@@ -384,8 +435,8 @@ class MarioClimbingGame:
             # 暫停時先畫遊戲畫面（但不更新），再畫暫停選單
             if self.player:
                 current_level = self.level_manager.get_current_level()
-                current_level.render(self.screen, self.player.y)
-                self.player.render(self.screen, self.player.y)
+                current_level.render(self.screen, self.camera_y + SCREEN_HEIGHT // 2)
+                self.player.render(self.screen, self.camera_y + SCREEN_HEIGHT // 2)
                 self.ui.draw_game_ui(
                     self.screen, self.player, self.level_manager.current_level_number
                 )
