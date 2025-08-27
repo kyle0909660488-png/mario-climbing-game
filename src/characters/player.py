@@ -35,8 +35,8 @@ CHARACTER_CONFIGS = {
     3: {  # 坦克型角色
         "name": "坦克瑪莉歐",
         "max_health": 150,
-        "speed": 3,
-        "jump_power": 10,
+        "speed": 5,
+        "jump_power": 12,
         "has_double_jump": False,
         "attack_damage": 25,
         "color": (128, 0, 128),  # 紫色
@@ -135,6 +135,13 @@ class Player:
         self.previous_jump_key_pressed = False
         self.jump_buffer_time = 0  # 跳躍緩衝時間，提高反應靈敏度
 
+        # 回血機制相關屬性
+        self.idle_time = 0  # 靜止時間計數器（幀數）
+        self.idle_heal_interval = 180  # 3秒 = 180幀（60幀/秒）
+        self.idle_heal_amount = 5  # 每次回復5血
+        self.last_velocity_x = 0  # 記錄上一幀的水平速度，用於檢測是否停止移動
+        self.last_velocity_y = 0  # 記錄上一幀的垂直速度，用於檢測是否停止移動
+
         # 裝備管理器引用
         self.equipment_manager = None
 
@@ -200,9 +207,13 @@ class Player:
         # 蹲下（S 鍵或下方向鍵）- 改良版本，正確處理位置調整
         self._handle_crouch_input(keys[pygame.K_s] or keys[pygame.K_DOWN], platforms)
 
-        # 攻擊（C 鍵）
-        if keys[pygame.K_c] and self.attack_cooldown <= 0:
+        # 攻擊（C 鍵） - 允許連續攻擊但按鍵放開時停止攻擊
+        attack_key_pressed = keys[pygame.K_c]
+        if attack_key_pressed:
             self._perform_attack()
+        else:
+            # 攻擊鍵沒有按下，停止攻擊狀態
+            self.is_attacking = False
 
         # 裝備技能快捷鍵（數字鍵 1-4）
         if hasattr(self, "equipment_manager") and self.equipment_manager:
@@ -336,11 +347,10 @@ class Player:
         執行攻擊動作\n
         \n
         觸發近戰攻擊，對附近的敵人造成傷害\n
-        設定攻擊冷卻時間避免連續攻擊\n
+        已移除攻擊冷卻時間，允許玩家連續攻擊\n
         """
         self.is_attacking = True
         self.attack_just_started = True  # 標記攻擊剛開始
-        self.attack_cooldown = 20  # 20 幀的冷卻時間
 
     def update(self, platforms: List, traps: List):
         """
@@ -360,8 +370,6 @@ class Player:
         self.attack_just_started = False
 
         # 更新各種計時器
-        if self.attack_cooldown > 0:
-            self.attack_cooldown -= 1
         if self.invulnerability_time > 0:
             self.invulnerability_time -= 1
 
@@ -383,9 +391,8 @@ class Player:
         # 碰撞檢測陷阱
         self._check_trap_collisions(traps)
 
-        # 重置攻擊狀態
-        if self.attack_cooldown <= 0:
-            self.is_attacking = False
+        # 處理靜止回血機制
+        self._handle_idle_healing()
 
     def _update_horizontal_movement(self, platforms: List):
         """
@@ -855,6 +862,74 @@ class Player:
                             )
 
                     break  # 一次只能站在一個平台上
+
+    def _is_completely_idle(self) -> bool:
+        """
+        檢查玩家是否處於完全靜止狀態\n
+        \n
+        判斷玩家是否停下所有動作，包括：\n
+        1. 沒有水平移動（速度接近0）\n
+        2. 沒有垂直移動（速度接近0且站在地面上）\n
+        3. 沒有在攻擊\n
+        4. 沒有在加速衝刺\n
+        \n
+        回傳:\n
+        bool: 是否處於完全靜止狀態\n
+        """
+        # 檢查水平移動（速度很小視為靜止）
+        is_horizontal_still = abs(self.velocity_x) < 0.1
+
+        # 檢查垂直移動（在地面上且垂直速度很小）
+        is_vertical_still = self.is_on_ground and abs(self.velocity_y) < 0.1
+
+        # 檢查是否沒有攻擊動作
+        is_not_attacking = not self.is_attacking
+
+        # 檢查是否沒有加速衝刺
+        is_not_sprinting = not self.is_sprinting
+
+        # 所有條件都滿足才算完全靜止
+        return (
+            is_horizontal_still
+            and is_vertical_still
+            and is_not_attacking
+            and is_not_sprinting
+        )
+
+    def _handle_idle_healing(self):
+        """
+        處理靜止時的回血機制\n
+        \n
+        當玩家處於完全靜止狀態且血量未滿時：\n
+        1. 累計靜止時間\n
+        2. 每3秒（180幀）回復5滴血\n
+        3. 如果玩家開始移動，重置計時器\n
+        \n
+        設計理念：\n
+        - 鼓勵玩家在安全位置休息回復\n
+        - 需要持續靜止才能觸發，避免戰鬥中濫用\n
+        - 血量滿格時不需要計算，節省效能\n
+        """
+        # 如果血量已經滿格，不需要處理回血
+        if self.health >= self.max_health:
+            self.idle_time = 0  # 重置計時器節省資源
+            return
+
+        # 檢查是否完全靜止
+        if self._is_completely_idle():
+            # 累計靜止時間
+            self.idle_time += 1
+
+            # 如果靜止時間達到回血間隔（3秒 = 180幀）
+            if self.idle_time >= self.idle_heal_interval:
+                # 執行回血
+                self.heal(self.idle_heal_amount)
+
+                # 重置計時器，準備下次回血
+                self.idle_time = 0
+        else:
+            # 玩家不是完全靜止，重置靜止時間計時器
+            self.idle_time = 0
 
     def set_equipment_manager(self, equipment_manager):
         """

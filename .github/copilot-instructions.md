@@ -20,6 +20,11 @@ Equipment Effects → Enemy AI → Trap Updates → Rendering → UI Display
 Enemy Death → EquipmentDropManager.try_drop_item() → Player Pickup → Equipment Effects
 ```
 
+### 基類架構
+
+- **BaseEnemy** (`src/enemies/base_enemy.py`): 敵人基類，子類必須實作 `update_ai()`, `render()`, `attack_player()`
+- **BaseTrap** (`src/traps/base_trap.py`): 陷阱基類，子類必須實作 `update()`, `render()`, `_trigger_effect()`
+
 ## 📋 開發規範
 
 ### 代碼風格
@@ -39,6 +44,11 @@ def render(screen: pygame.Surface, camera_y: float)
 
 # 陷阱子類別必須呼叫基類方法
 def update(self):
+    # ... 子類邏輯 ...
+    self._update_base_properties()  # 必須呼叫
+
+# 敵人子類別必須呼叫基類方法
+def update(self, player):
     # ... 子類邏輯 ...
     self._update_base_properties()  # 必須呼叫
 
@@ -88,6 +98,8 @@ python main.py
 ### 除錯技巧
 
 - **跳過關卡**: 修改 `LevelManager.current_level_number`
+- **跳到 Boss 戰**: 遊戲中按 `F6` 直接跳到第六關測試
+- **重置關卡**: 遊戲中按 `Q` 重置當前關卡
 - **無敵模式**: 設定 `player.invulnerability_time = 999`
 - **快速測試**: 暫時註解 `clock.tick(FPS)` 加速執行
 - **碰撞可視化**: 在 render 方法中繪製 `get_collision_rect()`
@@ -129,6 +141,8 @@ python main.py
 ### Boss 戰機制
 
 - Boss 位於第 6 關（不是第 5 關），具備多階段攻擊模式
+- **地面決戰**：Boss 位於地面左側與玩家正面對決（見 `LEVEL6_BOSS_FIGHT.md`）
+- **雜兵護衛**：Boss 配備多層次護衛部隊，必須全部擊敗才能勝利
 - 範圍攻擊、召喚小兵、震波攻擊等特殊技能
 - 血量變化觸發不同 AI 行為模式
 - 100% 掉落率保證獎勵
