@@ -104,35 +104,43 @@ class MarioClimbingGame:
                 self.running = False
 
             elif event.type == pygame.KEYDOWN:
-                # ESC 鍵在不同狀態有不同功能
+                # ESC 鍵按下回到選單（若在選單則不變）
                 if event.key == pygame.K_ESCAPE:
-                    if self.game_state == "playing":
-                        self.game_state = "paused"  # 遊戲中按 ESC 就暫停
+                    # 如果在遊戲中或暫停或結束畫面，回到選單
+                    self._return_to_menu()
+                    continue
+
+                # Q 鍵按下在遊戲中重置當前關卡
+                if event.key == pygame.K_q:
+                    if self.game_state == "playing" and self.player:
+                        self._reset_current_level()
+                    # 如果在遊戲結束畫面，也接受 Q 重新開始當前關卡
+                    elif self.game_state == "game_over":
+                        self._reset_current_level()
+                    continue
+                else:
+                    # 選單狀態的按鍵處理
+                    if self.game_state == "menu":
+                        if event.key == pygame.K_LEFT:
+                            # 選擇前一個角色（循環選擇）
+                            self.selected_character_index = (
+                                self.selected_character_index - 1
+                            ) % 4
+                        elif event.key == pygame.K_RIGHT:
+                            # 選擇下一個角色（循環選擇）
+                            self.selected_character_index = (
+                                self.selected_character_index + 1
+                            ) % 4
+                        elif event.key == pygame.K_RETURN:
+                            # 按 Enter 開始遊戲，建立選定的角色
+                            self.start_game_with_character(
+                                self.selected_character_index
+                            )
+
+                    # 暫停狀態的按鍵處理
                     elif self.game_state == "paused":
-                        self.running = False  # 暫停中按 ESC 直接離開遊戲
-                    elif self.game_state == "menu":
-                        self.running = False  # 選單中按 ESC 也可以離開遊戲
-
-                # 選單狀態的按鍵處理
-                elif self.game_state == "menu":
-                    if event.key == pygame.K_LEFT:
-                        # 選擇前一個角色（循環選擇）
-                        self.selected_character_index = (
-                            self.selected_character_index - 1
-                        ) % 4
-                    elif event.key == pygame.K_RIGHT:
-                        # 選擇下一個角色（循環選擇）
-                        self.selected_character_index = (
-                            self.selected_character_index + 1
-                        ) % 4
-                    elif event.key == pygame.K_RETURN:
-                        # 按 Enter 開始遊戲，建立選定的角色
-                        self.start_game_with_character(self.selected_character_index)
-
-                # 暫停狀態的按鍵處理
-                elif self.game_state == "paused":
-                    if event.key == pygame.K_SPACE:
-                        self.game_state = "playing"  # 空白鍵繼續遊戲
+                        if event.key == pygame.K_SPACE:
+                            self.game_state = "playing"  # 空白鍵繼續遊戲
 
     def start_game_with_character(self, character_type: int):
         """
@@ -164,6 +172,54 @@ class MarioClimbingGame:
 
         # 切換到遊戲狀態
         self.game_state = "playing"
+
+    def _return_to_menu(self):
+        """
+        將遊戲狀態切換回選單，並重置部分暫存狀態
+        """
+        # 停止遊戲進行，回到選單畫面
+        self.game_state = "menu"
+
+        # 清除玩家物件（選單中不需要持續玩家狀態）
+        self.player = None
+
+        # 可選：清空掉落與裝備（保持玩家選擇狀態）
+        self.equipment_drop_manager.clear_all()
+
+    def _reset_current_level(self):
+        """
+        重置目前的關卡並將玩家重置到該關卡的起始位置與初始狀態
+        """
+        # 取得當前關卡物件
+        current_level = self.level_manager.get_current_level()
+
+        # 重置關卡結構與狀態
+        current_level.reset()
+
+        # 如果玩家不存在（例如從遊戲結束畫面按下 Q），建立新玩家並放置在起點
+        if not self.player:
+            start_x = current_level.player_start_x
+            start_y = current_level.player_start_y
+            # 使用先前選定的角色索引，若不存在則使用 0
+            character_index = getattr(self, "selected_character_index", 0)
+            self.player = Player(start_x, start_y, character_index)
+            self.player.set_equipment_manager(self.equipment_manager)
+        else:
+            # 將玩家位置、速度與狀態重置
+            self.player.x = current_level.player_start_x
+            self.player.y = current_level.player_start_y
+            self.player.velocity_x = 0
+            self.player.velocity_y = 0
+            self.player.is_on_ground = False
+            self.player.can_double_jump = self.player.has_double_jump_ability
+            self.player.is_crouching = False
+            self.player.is_sprinting = False
+            self.player.attack_cooldown = 0
+            self.player.is_attacking = False
+            self.player.invulnerability_time = 0
+
+        # 重置裝備掉落（保留玩家已裝備的套裝，但清空場上的掉落物）
+        self.equipment_drop_manager.clear_all()
 
     def update(self):
         """
