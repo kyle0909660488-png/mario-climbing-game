@@ -209,8 +209,10 @@ class FireWall(BaseTrap):
                     # 選擇顏色
                     color = colors[particle["color_index"]]
 
-                    # 根據生命週期調整顏色強度
-                    adjusted_color = tuple(int(c * life_ratio) for c in color)
+                    # 根據生命週期調整顏色強度，確保數值在有效範圍內 (0-255)
+                    adjusted_color = tuple(
+                        max(0, min(255, int(c * life_ratio))) for c in color
+                    )
 
                     # 繪製粒子（用圓形）
                     pygame.draw.circle(
