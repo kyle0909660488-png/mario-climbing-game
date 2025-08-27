@@ -371,7 +371,7 @@ class Player:
         # 分別處理水平和垂直移動，避免高速穿透
         self._update_horizontal_movement(platforms)
         self._update_vertical_movement(platforms)
-        
+
         # 處理移動平台互動（讓玩家跟隨移動平台）
         self._handle_moving_platforms(traps)
 
@@ -387,6 +387,7 @@ class Player:
         更新水平移動並檢查碰撞\n
         \n
         將水平移動和碰撞檢測分開處理，避免高速移動時穿透問題\n
+        特別處理移動平台，避免站在平台上時被誤判為側邊碰撞\n
         \n
         參數:\n
         platforms (List): 平台物件清單\n
@@ -409,7 +410,22 @@ class Player:
             platform_rect = platform.get_collision_rect()
 
             if player_rect.colliderect(platform_rect):
-                # 發生碰撞，根據移動方向調整位置
+                # 檢查是否為移動平台且玩家站在上面的情況
+                from src.traps.moving_platform import MovingPlatform
+                
+                if isinstance(platform, MovingPlatform):
+                    # 檢查玩家是否站在移動平台上方（而不是撞到側邊）
+                    current_height = self.height if not self.is_crouching else self.height // 2
+                    
+                    # 玩家底部與平台頂部的距離
+                    player_bottom = self.y + current_height
+                    distance_to_platform_top = abs(player_bottom - platform_rect.top)
+                    
+                    # 如果玩家確實站在平台上（容錯範圍 8 像素），不阻止水平移動
+                    if distance_to_platform_top <= 8:
+                        continue  # 跳過這個碰撞處理，允許玩家在平台上移動
+                
+                # 對於普通平台或真正的側邊碰撞，進行標準碰撞處理
                 if self.velocity_x > 0:  # 向右移動，撞到平台左側
                     self.x = platform_rect.left - self.width
                 else:  # 向左移動，撞到平台右側
@@ -594,11 +610,11 @@ class Player:
         for trap in traps:
             # 導入 MovingPlatform 類別來檢查
             from src.traps.moving_platform import MovingPlatform
-            
+
             # 移動平台不算陷阱，跳過傷害處理
             if isinstance(trap, MovingPlatform):
                 continue
-            
+
             if trap.is_active and player_rect.colliderect(trap.get_collision_rect()):
                 # 觸發陷阱效果
                 damage = trap.get_damage()
@@ -782,42 +798,48 @@ class Player:
         traps (List): 陷阱清單（包含移動平台）\n
         """
         from src.traps.moving_platform import MovingPlatform
-        
+
         player_rect = self.get_collision_rect()
-        
+
         for trap in traps:
             if isinstance(trap, MovingPlatform):
                 platform_rect = trap.get_collision_rect()
-                
+
                 # 檢查玩家是否站在平台上
                 # 玩家的底部要接觸平台的頂部，且水平位置要重疊
-                is_on_top = (player_rect.bottom >= platform_rect.top and 
-                           player_rect.bottom <= platform_rect.top + 10)  # 允許一些容錯
-                is_horizontal_aligned = (player_rect.left < platform_rect.right and 
-                                       player_rect.right > platform_rect.left)
-                
+                is_on_top = (
+                    player_rect.bottom >= platform_rect.top
+                    and player_rect.bottom <= platform_rect.top + 10
+                )  # 允許一些容錯
+                is_horizontal_aligned = (
+                    player_rect.left < platform_rect.right
+                    and player_rect.right > platform_rect.left
+                )
+
                 # 玩家必須是向下移動或靜止（不是向上跳），才能站在平台上
                 is_falling_or_stationary = self.velocity_y >= 0
-                
+
                 if is_on_top and is_horizontal_aligned and is_falling_or_stationary:
                     # 讓玩家貼合平台頂部
                     self.y = platform_rect.top - self.height
                     self.velocity_y = 0  # 停止垂直移動
                     self.is_on_ground = True  # 設定為站在地面上
-                    
+
                     # 讓玩家跟隨平台移動
                     platform_velocity = trap.get_platform_velocity()
                     self.x += platform_velocity[0]  # 跟隨平台的水平移動
                     # 垂直移動已經透過 y 座標調整處理了
-                    
+
                     # 如果平台水平移動，給玩家一點慣性
                     if abs(platform_velocity[0]) > 0.1:
                         self.velocity_x += platform_velocity[0] * 0.3
                         # 限制慣性不要太大
                         max_inertia = 3.0
                         if abs(self.velocity_x) > max_inertia:
-                            self.velocity_x = max_inertia if self.velocity_x > 0 else -max_inertia
-                    
+                            self.velocity_x = (
+                                max_inertia if self.velocity_x > 0 else -max_inertia
+                            )
+
                     break  # 一次只能站在一個平台上
 
     def set_equipment_manager(self, equipment_manager):
