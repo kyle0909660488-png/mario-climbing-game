@@ -263,7 +263,16 @@ class MarioClimbingGame:
             self.player.handle_input(keys, current_level.platforms)
 
             # 更新玩家物理狀態（移動、重力、碰撞）
-            self.player.update(current_level.platforms, current_level.traps)
+            # 建立包含移動平台的完整平台清單
+            all_platforms = current_level.platforms.copy()
+            
+            # 把移動平台也加入平台清單，讓玩家可以站在上面
+            from src.traps.moving_platform import MovingPlatform
+            for trap in current_level.traps:
+                if isinstance(trap, MovingPlatform):
+                    all_platforms.append(trap)
+            
+            self.player.update(all_platforms, current_level.traps)
 
             # 更新當前關卡（敵人移動、陷阱動作）
             self.level_manager.update(self.player)

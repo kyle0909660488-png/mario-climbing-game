@@ -347,7 +347,8 @@ class Player:
         執行每幀的狀態更新，包括：\n
         1. 物理運算（重力、移動）\n
         2. 碰撞檢測（平台、陷阱）\n
-        3. 狀態計時器更新\n
+        3. 移動平台互動處理\n
+        4. 狀態計時器更新\n
         \n
         參數:\n
         platforms (List): 當前關卡的平台清單\n
@@ -370,6 +371,9 @@ class Player:
         # 分別處理水平和垂直移動，避免高速穿透
         self._update_horizontal_movement(platforms)
         self._update_vertical_movement(platforms)
+        
+        # 處理移動平台互動（讓玩家跟隨移動平台）
+        self._handle_moving_platforms(traps)
 
         # 碰撞檢測陷阱
         self._check_trap_collisions(traps)
@@ -572,7 +576,7 @@ class Player:
         檢測玩家是否觸發陷阱，不同陷阱有不同效果：\n
         - 尖刺：造成傷害\n
         - 火焰：持續傷害\n
-        - 移動平台：跟隨移動\n
+        - 移動平台：跟隨移動（特殊處理，不當作陷阱）\n
         \n
         參數:\n
         traps (List): 陷阱物件清單\n
@@ -588,6 +592,13 @@ class Player:
         )
 
         for trap in traps:
+            # 導入 MovingPlatform 類別來檢查
+            from src.traps.moving_platform import MovingPlatform
+            
+            # 移動平台不算陷阱，跳過傷害處理
+            if isinstance(trap, MovingPlatform):
+                continue
+            
             if trap.is_active and player_rect.colliderect(trap.get_collision_rect()):
                 # 觸發陷阱效果
                 damage = trap.get_damage()
@@ -760,6 +771,54 @@ class Player:
 
         if health_width > 0:
             pygame.draw.rect(screen, health_color, (x, y, health_width, bar_height))
+
+    def _handle_moving_platforms(self, traps: List):
+        """
+        處理移動平台互動\n
+        \n
+        檢查玩家是否站在移動平台上，如果是則跟隨平台移動\n
+        \n
+        參數:\n
+        traps (List): 陷阱清單（包含移動平台）\n
+        """
+        from src.traps.moving_platform import MovingPlatform
+        
+        player_rect = self.get_collision_rect()
+        
+        for trap in traps:
+            if isinstance(trap, MovingPlatform):
+                platform_rect = trap.get_collision_rect()
+                
+                # 檢查玩家是否站在平台上
+                # 玩家的底部要接觸平台的頂部，且水平位置要重疊
+                is_on_top = (player_rect.bottom >= platform_rect.top and 
+                           player_rect.bottom <= platform_rect.top + 10)  # 允許一些容錯
+                is_horizontal_aligned = (player_rect.left < platform_rect.right and 
+                                       player_rect.right > platform_rect.left)
+                
+                # 玩家必須是向下移動或靜止（不是向上跳），才能站在平台上
+                is_falling_or_stationary = self.velocity_y >= 0
+                
+                if is_on_top and is_horizontal_aligned and is_falling_or_stationary:
+                    # 讓玩家貼合平台頂部
+                    self.y = platform_rect.top - self.height
+                    self.velocity_y = 0  # 停止垂直移動
+                    self.is_on_ground = True  # 設定為站在地面上
+                    
+                    # 讓玩家跟隨平台移動
+                    platform_velocity = trap.get_platform_velocity()
+                    self.x += platform_velocity[0]  # 跟隨平台的水平移動
+                    # 垂直移動已經透過 y 座標調整處理了
+                    
+                    # 如果平台水平移動，給玩家一點慣性
+                    if abs(platform_velocity[0]) > 0.1:
+                        self.velocity_x += platform_velocity[0] * 0.3
+                        # 限制慣性不要太大
+                        max_inertia = 3.0
+                        if abs(self.velocity_x) > max_inertia:
+                            self.velocity_x = max_inertia if self.velocity_x > 0 else -max_inertia
+                    
+                    break  # 一次只能站在一個平台上
 
     def set_equipment_manager(self, equipment_manager):
         """
