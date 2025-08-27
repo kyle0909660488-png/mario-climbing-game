@@ -291,75 +291,207 @@ class Player:
         if not self.is_on_ground:
             self.velocity_y += 0.8  # 重力加速度
 
-        # 限制最大下墜速度，避免穿過平台
-        if self.velocity_y > 15:
-            self.velocity_y = 15
+        # 限制最大下墜速度，避免穿過平台（更嚴格的限制）
+        if self.velocity_y > 12:
+            self.velocity_y = 12
 
-        # 應用速度到位置
-        self.x += self.velocity_x
-        self.y += self.velocity_y
+        # 分別處理水平和垂直移動，避免高速穿透
+        self._update_horizontal_movement(platforms)
+        self._update_vertical_movement(platforms)
 
-        # 碰撞檢測
-        self._check_platform_collisions(platforms)
+        # 碰撞檢測陷阱
         self._check_trap_collisions(traps)
 
         # 重置攻擊狀態
         if self.attack_cooldown <= 0:
             self.is_attacking = False
 
-    def _check_platform_collisions(self, platforms: List):
+    def _update_horizontal_movement(self, platforms: List):
         """
-        檢查與平台的碰撞\n
+        更新水平移動並檢查碰撞\n
         \n
-        處理玩家與所有平台的碰撞，包括：\n
-        - 上方碰撞：站在平台上\n
-        - 下方碰撞：撞到平台底部\n
-        - 側面碰撞：撞到平台側邊\n
+        將水平移動和碰撞檢測分開處理，避免高速移動時穿透問題\n
+        \n
+        參數:\n
+        platforms (List): 平台物件清單\n
+        """
+        if abs(self.velocity_x) < 0.01:  # 水平速度很小時直接設為 0
+            self.velocity_x = 0
+            return
+
+        # 儲存原始位置
+        original_x = self.x
+
+        # 嘗試移動
+        self.x += self.velocity_x
+
+        # 建立玩家碰撞矩形
+        player_rect = self._get_current_collision_rect()
+
+        # 檢查與平台的水平碰撞
+        for platform in platforms:
+            platform_rect = platform.get_collision_rect()
+
+            if player_rect.colliderect(platform_rect):
+                # 發生碰撞，根據移動方向調整位置
+                if self.velocity_x > 0:  # 向右移動，撞到平台左側
+                    self.x = platform_rect.left - self.width
+                else:  # 向左移動，撞到平台右側
+                    self.x = platform_rect.right
+
+                self.velocity_x = 0  # 停止水平移動
+                break
+
+    def _update_vertical_movement(self, platforms: List):
+        """
+        更新垂直移動並檢查碰撞\n
+        \n
+        將垂直移動和碰撞檢測分開處理，避免高速下降時穿透平台\n
         \n
         參數:\n
         platforms (List): 平台物件清單\n
         """
         # 先假設不在地面上
+        was_on_ground = self.is_on_ground
         self.is_on_ground = False
 
-        # 建立玩家的碰撞矩形
-        player_rect = pygame.Rect(
-            self.x,
-            self.y,
-            self.width,
-            self.height if not self.is_crouching else self.height // 2,
-        )
+        if abs(self.velocity_y) < 0.01:  # 垂直速度很小時直接設為 0
+            self.velocity_y = 0
+            # 如果速度很小但之前在地面上，檢查是否還在地面上
+            if was_on_ground:
+                self._check_ground_contact(platforms)
+            return
 
+        # 儲存原始位置
+        original_y = self.y
+
+        # 嘗試移動
+        self.y += self.velocity_y
+
+        # 建立玩家碰撞矩形
+        player_rect = self._get_current_collision_rect()
+
+        # 檢查與平台的垂直碰撞
         for platform in platforms:
             platform_rect = platform.get_collision_rect()
 
             if player_rect.colliderect(platform_rect):
-                # 計算重疊的區域，決定碰撞方向
-                overlap_x = min(
-                    player_rect.right - platform_rect.left,
-                    platform_rect.right - player_rect.left,
-                )
-                overlap_y = min(
-                    player_rect.bottom - platform_rect.top,
-                    platform_rect.bottom - player_rect.top,
-                )
+                if self.velocity_y > 0:  # 正在下降，可能落在平台上
+                    # 確認玩家之前在平台上方
+                    current_height = (
+                        self.height if not self.is_crouching else self.height // 2
+                    )
+                    player_bottom_before = original_y + current_height
 
-                if overlap_y < overlap_x:
-                    # 垂直碰撞（上下方向）
-                    if self.velocity_y > 0:  # 正在下降，撞到平台上方
-                        self.y = platform_rect.top - self.height
-                        self.velocity_y = 0
-                        self.is_on_ground = True
-                    else:  # 正在上升，撞到平台下方
-                        self.y = platform_rect.bottom
-                        self.velocity_y = 0
-                else:
-                    # 水平碰撞（左右方向）
-                    if self.velocity_x > 0:  # 向右移動，撞到平台左側
-                        self.x = platform_rect.left - self.width
-                    else:  # 向左移動，撞到平台右側
-                        self.x = platform_rect.right
-                    self.velocity_x = 0
+                    # 使用更嚴格的檢查，確保玩家確實從上方下來
+                    if (
+                        player_bottom_before <= platform_rect.top + 3
+                    ):  # 減少容錯範圍到3像素
+                        # 玩家確實是從上方落到平台上
+                        new_y = platform_rect.top - current_height
+
+                        # 驗證新位置的有效性
+                        if self._is_valid_position(new_y, platforms, platform):
+                            self.y = new_y
+                            self.velocity_y = 0
+                            self.is_on_ground = True
+
+                            # 恢復二段跳能力（只有在真正著地時）
+                            if self.has_double_jump_ability:
+                                self.can_double_jump = True
+                        else:
+                            # 如果新位置無效，稍微調整
+                            self.y = original_y
+                            self.velocity_y = 1  # 給一點小速度繼續下降
+
+                        break
+
+                elif self.velocity_y < 0:  # 正在上升，撞到平台下方
+                    # 確認玩家之前在平台下方
+                    player_top_before = original_y
+                    if player_top_before >= platform_rect.bottom - 3:  # 減少容錯範圍
+                        # 玩家確實是從下方撞到平台底部
+                        new_y = platform_rect.bottom
+
+                        # 驗證新位置的有效性
+                        if self._is_valid_position(new_y, platforms, platform):
+                            self.y = new_y
+                            self.velocity_y = 0
+                        else:
+                            # 如果新位置無效，稍微調整
+                            self.y = original_y
+                            self.velocity_y = -1  # 給一點小速度繼續上升
+
+                        break
+
+    def _check_ground_contact(self, platforms: List):
+        """
+        檢查玩家是否還與地面接觸\n
+        \n
+        當玩家垂直速度很小時，檢查是否還站在平台上\n
+        \n
+        參數:\n
+        platforms (List): 平台物件清單\n
+        """
+        current_height = self.height if not self.is_crouching else self.height // 2
+
+        # 建立一個稍微向下延伸的檢測矩形
+        ground_check_rect = pygame.Rect(
+            self.x + 2,  # 左右各縮進2像素，更精確檢測
+            self.y + current_height,
+            self.width - 4,
+            3,  # 向下延伸3像素檢查地面
+        )
+
+        for platform in platforms:
+            platform_rect = platform.get_collision_rect()
+            if ground_check_rect.colliderect(platform_rect):
+                self.is_on_ground = True
+                return
+
+    def _is_valid_position(
+        self, new_y: float, platforms: List, current_platform
+    ) -> bool:
+        """
+        驗證新位置是否有效\n
+        \n
+        檢查調整後的位置是否會與其他平台產生不合理的碰撞\n
+        \n
+        參數:\n
+        new_y (float): 新的Y座標\n
+        platforms (List): 平台物件清單\n
+        current_platform: 當前碰撞的平台（排除檢查）\n
+        \n
+        回傳:\n
+        bool: 位置是否有效\n
+        """
+        # 建立新位置的碰撞矩形
+        test_rect = pygame.Rect(
+            self.x,
+            new_y,
+            self.width,
+            self.height if not self.is_crouching else self.height // 2,
+        )
+
+        # 檢查是否與其他平台重疊
+        for platform in platforms:
+            if platform == current_platform:
+                continue  # 跳過當前碰撞的平台
+
+            if test_rect.colliderect(platform.get_collision_rect()):
+                return False  # 與其他平台重疊，位置無效
+
+        return True  # 位置有效
+
+    def _get_current_collision_rect(self) -> pygame.Rect:
+        """
+        取得當前玩家的碰撞矩形（考慮蹲下狀態）\n
+        \n
+        回傳:\n
+        pygame.Rect: 當前碰撞矩形\n
+        """
+        height = self.height if not self.is_crouching else self.height // 2
+        return pygame.Rect(self.x, self.y, self.width, height)
 
     def _check_trap_collisions(self, traps: List):
         """
