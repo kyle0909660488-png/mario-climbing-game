@@ -115,7 +115,7 @@ class LevelManager:
         """
         建立第二關：陷阱入門\n
         \n
-        引入尖刺陷阱，教玩家如何避開危險\n
+        引入尖刺陷阱和初級敵人，教玩家如何避開危險和戰鬥基礎\n
         \n
         回傳:\n
         Level: 第二關關卡物件\n
@@ -147,7 +147,13 @@ class LevelManager:
             Spike(600, 130, 70, 20),
         ]
 
-        enemies = []
+        # 第二關引入基本敵人，讓玩家熟悉戰鬥機制
+        enemies = [
+            # 地面巡邏的溫和敵人，教學用途
+            BasicEnemy(700, 730, patrol_range=120),
+            # 平台上的敵人，需要跳上去才會遭遇
+            BasicEnemy(150, 630, patrol_range=80),
+        ]
 
         return Level(
             level_number=2,
@@ -164,7 +170,7 @@ class LevelManager:
         """
         建立第三關：移動平台挑戰\n
         \n
-        引入移動平台和火焰陷阱，增加動態挑戰\n
+        引入移動平台和火焰陷阱，配合更多敵人增加動態挑戰\n
         \n
         回傳:\n
         Level: 第三關關卡物件\n
@@ -202,7 +208,16 @@ class LevelManager:
         # 把移動平台加入陷阱清單（它們有特殊行為）
         traps.extend(moving_platforms)
 
-        enemies = []
+        # 第三關增加敵人配置，搭配移動平台增加挑戰難度
+        enemies = [
+            # 地面守衛，阻擋玩家前進
+            BasicEnemy(450, 730, patrol_range=150),
+            BasicEnemy(950, 730, patrol_range=100),
+            # 平台上的敵人，需要配合移動平台作戰
+            BasicEnemy(350, 530, patrol_range=60),
+            # 高處狙擊手，給玩家攀爬時的壓力
+            BasicEnemy(950, 230, patrol_range=90),
+        ]
 
         return Level(
             level_number=3,
@@ -219,7 +234,7 @@ class LevelManager:
         """
         建立第四關：敵人關卡\n
         \n
-        引入敵人，玩家需要使用攻擊功能\n
+        大量敵人出現，玩家需要熟練使用攻擊功能和閃避技巧\n
         \n
         回傳:\n
         Level: 第四關關卡物件\n
@@ -239,22 +254,31 @@ class LevelManager:
         ]
 
         traps = [
-            # 混合各種陷阱
+            # 混合各種陷阱增加難度
             Spike(50, 730, 40, 20),
             Spike(1100, 730, 80, 20),
             FireWall(500, 450, 30, 100),
             Spike(400, 230, 60, 20),
+            # 新增更多陷阱挑戰
+            Spike(300, 630, 50, 20),
+            FireWall(150, 350, 30, 100),
         ]
 
         enemies = [
-            # 地面敵人
+            # 地面多層防守線
             BasicEnemy(800, 730, patrol_range=200),
             BasicEnemy(300, 730, patrol_range=150),
-            # 平台上的敵人
-            BasicEnemy(500, 530, patrol_range=100),
+            BasicEnemy(600, 730, patrol_range=100),  # 新增地面敵人
+            # 平台守衛軍團
+            BasicEnemy(500, 530, patrol_range=120),  # 增加巡邏範圍
             BasicEnemy(250, 430, patrol_range=80),
+            BasicEnemy(150, 430, patrol_range=60),  # 新增平台敵人
             BasicEnemy(700, 330, patrol_range=120),
+            BasicEnemy(800, 330, patrol_range=100),  # 新增平台敵人
+            # 高處狙擊部隊
             BasicEnemy(750, 130, patrol_range=100),
+            BasicEnemy(250, 230, patrol_range=80),  # 新增狙擊手
+            BasicEnemy(800, 130, patrol_range=90),  # 新增狙擊手
         ]
 
         return Level(
@@ -272,7 +296,7 @@ class LevelManager:
         """
         建立第五關：Boss 戰\n
         \n
-        最終 Boss 關卡，集合所有挑戰元素\n
+        最終 Boss 關卡，集合所有挑戰元素，多階段戰鬥體驗\n
         \n
         回傳:\n
         Level: 第五關關卡物件\n
@@ -283,35 +307,47 @@ class LevelManager:
             Platform(100, 650, 150, 20),
             Platform(550, 650, 150, 20),
             Platform(950, 650, 150, 20),
-            # Boss 平台周圍的小平台
+            # Boss 平台周圍的戰術平台
             Platform(200, 450, 100, 20),
-            Platform(500, 350, 200, 30),  # Boss 平台
+            Platform(500, 350, 200, 30),  # Boss 主要活動平台
             Platform(800, 450, 100, 20),
-            # 逃生路線
+            # 逃生和戰術移動路線
             Platform(50, 250, 100, 20),
+            Platform(350, 200, 150, 20),  # 新增中間平台
             Platform(1050, 250, 100, 20),
             # 勝利平台
             Platform(450, 50, 300, 40),
         ]
 
         traps = [
-            # Boss 戰區域的陷阱
+            # Boss 戰區域的環境危險
             Spike(300, 730, 60, 20),
             Spike(850, 730, 60, 20),
             FireWall(100, 550, 30, 100),
             FireWall(1070, 550, 30, 100),
-            # 移動的危險
+            # 動態危險增加戰鬥複雜度
             MovingPlatform(350, 550, 80, 20, 350, 750, 2),
+            # 新增更多陷阱挑戰
+            Spike(150, 630, 40, 20),
+            Spike(1000, 630, 40, 20),
+            FireWall(750, 300, 30, 150),  # Boss 區域附近的火焰
         ]
 
         enemies = [
-            # 普通小兵
+            # Boss 前哨部隊 - 第一波挑戰
             BasicEnemy(150, 730, patrol_range=100),
             BasicEnemy(1000, 730, patrol_range=100),
+            BasicEnemy(600, 730, patrol_range=80),  # 新增地面守衛
+            # 中層防禦線 - 阻礙玩家接近 Boss
             BasicEnemy(250, 430, patrol_range=50),
             BasicEnemy(850, 430, patrol_range=50),
-            # Boss 敵人在戰鬥場地中央
-            Boss(550, 600, boss_type="fire_lord"),
+            BasicEnemy(150, 630, patrol_range=60),  # 新增側翼守衛
+            BasicEnemy(1000, 630, patrol_range=60),  # 新增側翼守衛
+            # Boss 精英護衛 - Boss 周圍的強化敵人
+            BasicEnemy(400, 330, patrol_range=40),  # Boss 平台左側護衛
+            BasicEnemy(700, 330, patrol_range=40),  # Boss 平台右側護衛
+            # 主要 Boss 敵人 - 最終挑戰
+            Boss(550, 320, boss_type="fire_lord"),  # 調整 Boss 位置到平台上
         ]
 
         return Level(
