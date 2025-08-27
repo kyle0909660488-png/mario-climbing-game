@@ -412,19 +412,28 @@ class Player:
             if player_rect.colliderect(platform_rect):
                 # 檢查是否為移動平台且玩家站在上面的情況
                 from src.traps.moving_platform import MovingPlatform
-                
+
                 if isinstance(platform, MovingPlatform):
                     # 檢查玩家是否站在移動平台上方（而不是撞到側邊）
-                    current_height = self.height if not self.is_crouching else self.height // 2
-                    
+                    current_height = (
+                        self.height if not self.is_crouching else self.height // 2
+                    )
+
                     # 玩家底部與平台頂部的距離
                     player_bottom = self.y + current_height
                     distance_to_platform_top = abs(player_bottom - platform_rect.top)
-                    
-                    # 如果玩家確實站在平台上（容錯範圍 8 像素），不阻止水平移動
-                    if distance_to_platform_top <= 8:
+
+                    # 玩家中心與平台中心的水平距離
+                    player_center_x = self.x + self.width / 2
+                    platform_center_x = platform_rect.x + platform_rect.width / 2
+                    horizontal_distance = abs(player_center_x - platform_center_x)
+
+                    # 如果玩家確實站在平台上且在平台的水平範圍內，不阻止水平移動
+                    if distance_to_platform_top <= 8 and horizontal_distance <= (
+                        platform_rect.width / 2 + self.width / 2
+                    ):
                         continue  # 跳過這個碰撞處理，允許玩家在平台上移動
-                
+
                 # 對於普通平台或真正的側邊碰撞，進行標準碰撞處理
                 if self.velocity_x > 0:  # 向右移動，撞到平台左側
                     self.x = platform_rect.left - self.width
