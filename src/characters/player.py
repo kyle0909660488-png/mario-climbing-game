@@ -137,7 +137,7 @@ class Player:
         # 裝備管理器引用
         self.equipment_manager = None
 
-    def handle_input(self, keys):
+    def handle_input(self, keys, platforms: List = None):
         """
         處理玩家輸入\n
         \n
@@ -196,8 +196,8 @@ class Player:
 
         self.previous_jump_key_pressed = jump_key_pressed  # 記錄當前幀的按鍵狀態
 
-        # 蹲下（S 鍵或下方向鍵）
-        self.is_crouching = keys[pygame.K_s] or keys[pygame.K_DOWN]
+        # 蹲下（S 鍵或下方向鍵）- 改良版本，正確處理位置調整
+        self._handle_crouch_input(keys[pygame.K_s] or keys[pygame.K_DOWN], platforms)
 
         # 攻擊（C 鍵）
         if keys[pygame.K_c] and self.attack_cooldown <= 0:
@@ -257,6 +257,78 @@ class Player:
             return True  # 二段跳成功
 
         return False  # 無法跳躍
+
+    def _handle_crouch_input(self, crouch_key_pressed: bool, platforms: List = None):
+        """
+        處理蹲下輸入並調整玩家位置\n
+        \n
+        正確處理蹲下和站起來時的位置調整，確保玩家的腳部位置保持一致\n
+        避免蹲下後站起來時身體卡在地板裡或穿透地板的問題\n
+        \n
+        參數:\n
+        crouch_key_pressed (bool): 是否按下蹲下鍵\n
+        \n
+        邏輯說明:\n
+        - 從站立變為蹲下：Y座標向下移動 (height - height//2)，保持腳部位置不變\n
+        - 從蹲下變為站立：Y座標向上移動 (height - height//2)，恢復原始高度\n
+        - 站起來時會檢查頭部空間，如果上方有障礙物會阻止站起來\n
+        """
+        was_crouching = self.is_crouching
+        want_to_crouch = crouch_key_pressed
+
+        # 如果狀態沒有改變，直接回傳
+        if was_crouching == want_to_crouch:
+            return
+
+        # 計算高度差異
+        height_difference = self.height - self.height // 2  # 站立高度 - 蹲下高度
+
+        if not was_crouching and want_to_crouch:
+            # 從站立變為蹲下
+            # 向下調整Y座標，讓腳部位置保持不變
+            self.y += height_difference
+            self.is_crouching = True
+
+        elif was_crouching and not want_to_crouch:
+            # 從蹲下變為站立
+            # 需要檢查頭部上方是否有空間站起來
+            if self._can_stand_up(platforms):
+                # 向上調整Y座標，恢復站立高度
+                self.y -= height_difference
+                self.is_crouching = False
+            # 如果無法站起來，保持蹲下狀態
+
+    def _can_stand_up(self, platforms: List = None) -> bool:
+        """
+        檢查玩家是否能從蹲下狀態站起來\n
+        \n
+        檢查玩家頭部上方是否有足夠空間站立，避免站起來時頭部卡在天花板或平台裡\n
+        \n
+        參數:\n
+        platforms (List): 平台物件清單，用於碰撞檢測\n
+        \n
+        回傳:\n
+        bool: 是否能夠站起來\n
+        """
+        if platforms is None:
+            return True  # 如果沒有平台資料，預設允許站起來
+
+        # 計算站立時的碰撞矩形
+        height_difference = self.height - self.height // 2
+        standing_rect = pygame.Rect(
+            self.x,
+            self.y - height_difference,  # 站立時Y座標會向上移動
+            self.width,
+            self.height,  # 完整高度
+        )
+
+        # 檢查是否與任何平台碰撞
+        for platform in platforms:
+            platform_rect = platform.get_collision_rect()
+            if standing_rect.colliderect(platform_rect):
+                return False  # 有碰撞，無法站起來
+
+        return True  # 沒有碰撞，可以站起來
 
     def _perform_attack(self):
         """

@@ -256,11 +256,13 @@ class MarioClimbingGame:
             # 取得當前按住的按鍵狀態
             keys = pygame.key.get_pressed()
 
-            # 讓玩家根據按鍵狀態更新
-            self.player.handle_input(keys)
+            # 取得當前關卡資料
+            current_level = self.level_manager.get_current_level()
+
+            # 讓玩家根據按鍵狀態更新（傳遞平台資料用於蹲下碰撞檢測）
+            self.player.handle_input(keys, current_level.platforms)
 
             # 更新玩家物理狀態（移動、重力、碰撞）
-            current_level = self.level_manager.get_current_level()
             self.player.update(current_level.platforms, current_level.traps)
 
             # 更新當前關卡（敵人移動、陷阱動作）
