@@ -120,8 +120,12 @@ class Player:
         self.is_attacking = False
         self.attack_just_started = False  # 標記攻擊是否剛開始
 
-        # 火球管理器（將在遊戲初始化時設定）
+        # 投射物管理器（將在遊戲初始化時設定）
         self.fireball_manager = None
+        self.iceball_manager = None
+
+        # 投射物類型切換
+        self.projectile_type = "fireball"  # 預設為火焰球，可選 "fireball" 或 "iceball"
 
         # 無敵時間（受傷後短暫無法再受傷）
         self.invulnerability_time = 0
@@ -129,6 +133,7 @@ class Player:
         # 按鍵狀態記錄（用於實現單次觸發和跳躍緩衝）
         self.previous_jump_key_pressed = False
         self.previous_attack_key_pressed = False  # 記錄攻擊鍵狀態
+        self.previous_switch_key_pressed = False  # 記錄切換鍵狀態
         self.jump_buffer_time = 0  # 跳躍緩衝時間，提高反應靈敏度
 
         # 回血機制相關屬性
@@ -203,13 +208,16 @@ class Player:
         # 蹲下（S 鍵或下方向鍵）- 改良版本，正確處理位置調整
         self._handle_crouch_input(keys[pygame.K_s] or keys[pygame.K_DOWN], platforms)
 
-        # 攻擊（C 鍵） - 發射火球攻擊
+        # 攻擊（C 鍵） - 發射投射物攻擊
         attack_key_pressed = keys[pygame.K_c]
         if attack_key_pressed and not self.previous_attack_key_pressed:
             # 只在按鍵剛按下時觸發攻擊（單次觸發）
-            self._perform_fireball_attack()
+            self._perform_projectile_attack()
 
         self.previous_attack_key_pressed = attack_key_pressed
+
+        # 投射物類型切換（V 鍵）
+        self._handle_projectile_type_switch(keys)
 
         # 裝備技能快捷鍵（數字鍵 1-4）
         if hasattr(self, "equipment_manager") and self.equipment_manager:
@@ -221,6 +229,28 @@ class Player:
                 self.equipment_manager.use_skill("invisibility", self)
             elif keys[pygame.K_4]:
                 self.equipment_manager.use_skill("shield", self)
+
+    def _handle_projectile_type_switch(self, keys):
+        """
+        處理投射物類型切換\n
+        \n
+        按 V 鍵在火焰球和冰凍球之間切換\n
+        \n
+        參數:\n
+        keys (dict): pygame.key.get_pressed() 回傳的按鍵狀態字典\n
+        """
+        switch_key_pressed = keys[pygame.K_v]
+
+        # 只在按鍵剛按下時觸發切換（防止重複觸發）
+        if switch_key_pressed and not self.previous_switch_key_pressed:
+            if self.projectile_type == "fireball":
+                self.projectile_type = "iceball"
+                print("切換到冰凍球！")
+            else:
+                self.projectile_type = "fireball"
+                print("切換到火焰球！")
+
+        self.previous_switch_key_pressed = switch_key_pressed
 
     def _try_jump(self):
         """
@@ -338,20 +368,17 @@ class Player:
 
         return True  # 沒有碰撞，可以站起來
 
-    def _perform_fireball_attack(self):
+    def _perform_projectile_attack(self):
         """
-        執行火球攻擊\n
+        執行投射物攻擊\n
         \n
-        發射火球投射物，取代原本的近戰攻擊\n
-        火球會朝玩家面向的方向飛行，擊中敵人造成傷害和燃燒效果\n
+        根據當前選擇的投射物類型發射對應的投射物\n
+        - 火焰球：造成傷害和燃燒效果\n
+        - 冰凍球：造成傷害和暈眩效果\n
         """
         # 檢查攻擊冷卻時間
         if self.attack_cooldown > 0:
             return  # 還在冷卻中，無法攻擊
-
-        # 檢查是否有火球管理器
-        if not self.fireball_manager:
-            return  # 沒有火球管理器，無法發射火球
 
         # 確定發射方向（根據最後的移動方向或面向方向）
         if hasattr(self, "last_facing_direction"):
@@ -367,17 +394,36 @@ class Player:
         launch_x = self.x + self.width // 2
         launch_y = self.y + self.height // 2
 
-        # 創建火球
-        self.fireball_manager.create_fireball(launch_x, launch_y, direction)
+        # 根據投射物類型發射對應的投射物
+        if self.projectile_type == "fireball":
+            # 檢查是否有火球管理器
+            if self.fireball_manager:
+                self.fireball_manager.create_fireball(launch_x, launch_y, direction)
+                print(f"發射火焰球！方向：{'右' if direction == 1 else '左'}")
+        elif self.projectile_type == "iceball":
+            # 檢查是否有冰球管理器
+            if self.iceball_manager:
+                self.iceball_manager.create_iceball(launch_x, launch_y, direction)
+                print(f"發射冰凍球！方向：{'右' if direction == 1 else '左'}")
 
-        # 設定攻擊冷卻時間（不需要設定 is_attacking 狀態，因為火球會自動處理碰撞）
+        # 設定攻擊冷卻時間
         self.attack_cooldown = self.max_attack_cooldown
 
         # 更新面向方向記錄
         self.last_facing_direction = direction
 
-        # 顯示攻擊回饋訊息
-        print(f"發射火球！方向：{'右' if direction == 1 else '左'}")
+    def _perform_fireball_attack(self):
+        """
+        執行火球攻擊（保留舊方法以維護兼容性）\n
+        \n
+        發射火球投射物，取代原本的近戰攻擊\n
+        火球會朝玩家面向的方向飛行，擊中敵人造成傷害和燃燒效果\n
+        """
+        # 暫時切換到火球模式並執行攻擊
+        old_type = self.projectile_type
+        self.projectile_type = "fireball"
+        self._perform_projectile_attack()
+        self.projectile_type = old_type
 
     def update(self, platforms: List, traps: List):
         """
@@ -949,6 +995,17 @@ class Player:
         fireball_manager: 火球管理器物件\n
         """
         self.fireball_manager = fireball_manager
+
+    def set_iceball_manager(self, iceball_manager):
+        """
+        設定冰球管理器\n
+        \n
+        讓玩家能夠發射冰球攻擊\n
+        \n
+        參數:\n
+        iceball_manager: 冰球管理器物件\n
+        """
+        self.iceball_manager = iceball_manager
 
     def set_equipment_manager(self, equipment_manager):
         """

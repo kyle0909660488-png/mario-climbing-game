@@ -20,6 +20,20 @@ Equipment Effects → Enemy AI → Trap Updates → Rendering → UI Display
 Enemy Death → EquipmentDropManager.try_drop_item() → Player Pickup → Equipment Effects
 ```
 
+### 關鍵管理器交互模式
+
+```
+Main Game Loop (main.py):
+├── Player.handle_input() + Player.update()  # 玩家物理和狀態
+├── LevelManager.update()                     # 關卡陷阱和敵人
+├── EquipmentManager.update()                 # 套裝效果持續作用
+├── FireballManager/IceballManager.update()  # 彈道物件管理
+└── GameUI.render()                          # UI 渲染
+
+Equipment Integration:
+Player → EquipmentManager → Equipment Effects → Player Stats Modification
+```
+
 ### 基類架構
 
 - **BaseEnemy** (`src/enemies/base_enemy.py`): 敵人基類，子類必須實作 `update_ai()`, `render()`, `attack_player()`
@@ -76,6 +90,21 @@ def is_in_screen_bounds(self, screen, camera_y):
 2. 在關卡的 `enemies` 清單中加入實例
 3. 死亡掉落在 `main._handle_enemy_drops()` 自動處理
 
+### 彈道系統管理
+
+所有發射物件統一由專門管理器處理：
+
+- `FireballManager`: 管理火焰套裝技能發射的火球
+- `IceballManager`: 管理冰霜套裝技能發射的冰球
+- 在 `main.update()` 中統一更新所有管理器
+- 彈道碰撞檢測和傷害計算在管理器內部處理
+
+### 新增投射物
+
+1. 繼承基礎投射物類別，實作 `update()`, `render()`, `check_collision()`
+2. 在對應管理器中加入實例生成和更新邏輯
+3. 套裝技能透過管理器的 `add_projectile()` 方法發射
+
 ### 裝備掉落流程
 
 ```
@@ -108,14 +137,17 @@ python main.py
 - **無敵模式**: 設定 `player.invulnerability_time = 999`
 - **快速測試**: 暫時註解 `clock.tick(FPS)` 加速執行
 - **碰撞可視化**: 在 render 方法中繪製 `get_collision_rect()`
-- **單元測試**: 執行 `python test_attack.py` 驗證攻擊系統
 - **相機除錯**: 調整 `camera_smoothing` 值（0.05-0.2）控制跟隨平滑度
 
 ### 角色能力速查
 
-- **角色 0**: 平衡型 (血量 100, 速度 5, 跳躍 15, 攻擊 20)
-- **角色 1**: 跳躍型 (血量 90, 速度 4, 跳躍 18, 攻擊 18, **二段跳能力**)
-- **角色 2**: 坦克型 (血量 150, 速度 3, 跳躍 10, 攻擊 25)
+- **角色 0**: 平衡瑪莉歐 (血量 120, 速度 5, 跳躍 15, 攻擊 50)
+- **角色 1**: 跳跳瑪莉歐 (血量 90, 速度 4, 跳躍 17, 攻擊 18, **二段跳能力**)
+- **角色 2**: 坦克瑪莉歐 (血量 150, 速度 6, 跳躍 15, 攻擊 25)
+
+### 注意事項
+
+目前只有 3 種角色可選（0-2），配置在 `CHARACTER_CONFIGS` 常數中
 
 ## ⚠️ 重要注意事項
 

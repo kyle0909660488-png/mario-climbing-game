@@ -350,7 +350,7 @@ class GameUI:
         player: 玩家物件\n
         level_number (int): 當前關卡編號\n
         """
-        # 繪製玩家血量條
+        # 繪製玩家血量條和攻擊模式指示器
         self._draw_player_health(screen, player)
 
         # 繪製關卡資訊
@@ -363,7 +363,7 @@ class GameUI:
         """
         繪製玩家血量條\n
         \n
-        在螢幕左上角顯示玩家的血量狀態\n
+        在螢幕左上角顯示玩家的血量狀態和攻擊模式\n
         """
         # 血量條位置和大小
         bar_x = 20
@@ -407,6 +407,69 @@ class GameUI:
         )
         screen.blit(name_text, (bar_x, bar_y - 15))
 
+        # 在血條下方顯示攻擊模式
+        self._draw_attack_mode_indicator(screen, player, bar_x, bar_y + bar_height + 10)
+
+    def _draw_attack_mode_indicator(
+        self, screen: pygame.Surface, player, x: int, y: int
+    ):
+        """
+        在血條下方顯示當前攻擊模式指示器\n
+        \n
+        根據玩家當前的投射物類型顯示對應的模式標籤\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 螢幕表面\n
+        player: 玩家物件\n
+        x (int): 指示器 X 座標\n
+        y (int): 指示器 Y 座標\n
+        """
+        # 檢查玩家是否有投射物類型屬性
+        if not hasattr(player, "projectile_type"):
+            return
+
+        # 根據投射物類型設定顯示內容和顏色
+        if player.projectile_type == "fireball":
+            mode_text = "🔥 火焰球模式"
+            mode_color = (255, 100, 50)  # 橙紅色
+            bg_color = (80, 25, 15)  # 深紅色背景
+        elif player.projectile_type == "iceball":
+            mode_text = "❄️ 冰凍球模式"
+            mode_color = (150, 200, 255)  # 淺藍色
+            bg_color = (25, 40, 80)  # 深藍色背景
+        else:
+            mode_text = "❓ 未知模式"
+            mode_color = (200, 200, 200)  # 灰色
+            bg_color = (40, 40, 40)  # 深灰色背景
+
+        # 計算文字尺寸和背景框
+        mode_surface = self.fonts["tiny"].render(mode_text, True, mode_color)
+        text_width = mode_surface.get_width()
+        text_height = mode_surface.get_height()
+
+        # 添加一些內邊距
+        padding = 6
+        bg_width = text_width + padding * 2
+        bg_height = text_height + padding
+
+        # 繪製背景框
+        bg_rect = pygame.Rect(x, y, bg_width, bg_height)
+        pygame.draw.rect(screen, bg_color, bg_rect)
+        pygame.draw.rect(screen, mode_color, bg_rect, 1)  # 邊框
+
+        # 繪製文字
+        text_x = x + padding
+        text_y = y + padding // 2
+        screen.blit(mode_surface, (text_x, text_y))
+
+        # 繪製切換提示（在指示器右側）
+        hint_text = self.fonts["tiny"].render(
+            "(V切換)", True, self.ui_colors["secondary"]
+        )
+        hint_x = x + bg_width + 10
+        hint_y = y + bg_height // 2 - hint_text.get_height() // 2
+        screen.blit(hint_text, (hint_x, hint_y))
+
     def _draw_level_info(self, screen: pygame.Surface, level_number: int):
         """
         繪製關卡資訊\n
@@ -431,16 +494,66 @@ class GameUI:
             "S: 蹲下",
             "R: 加速衝刺",
             "C: 攻擊",
+            "V: 切換攻擊模式",
             "ESC: 暫停",
         ]
 
-        hint_y = self.screen_height - 80  # 調整位置給更多提示留空間
+        hint_y = self.screen_height - 95  # 調整位置給更多提示留空間
         for i, hint in enumerate(hints):
             hint_text = self.fonts["tiny"].render(
                 hint, True, self.ui_colors["secondary"]
             )
             hint_rect = hint_text.get_rect(left=20, top=hint_y + i * 15)
             screen.blit(hint_text, hint_rect)
+
+    def _draw_projectile_type(self, screen: pygame.Surface, player):
+        """
+        繪製當前投射物類型\n
+        \n
+        在螢幕右下角顯示當前選擇的投射物類型\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 螢幕表面\n
+        player: 玩家物件\n
+        """
+        if not hasattr(player, "projectile_type"):
+            return
+
+        # 根據投射物類型設定顯示內容和顏色
+        if player.projectile_type == "fireball":
+            type_text = "火焰球"
+            type_color = (255, 100, 50)  # 橙紅色
+            bg_color = (100, 30, 20)  # 深紅色背景
+        elif player.projectile_type == "iceball":
+            type_text = "冰凍球"
+            type_color = (150, 200, 255)  # 淺藍色
+            bg_color = (30, 50, 100)  # 深藍色背景
+        else:
+            type_text = "未知"
+            type_color = (200, 200, 200)  # 灰色
+            bg_color = (50, 50, 50)  # 深灰色背景
+
+        # 繪製背景框
+        text_width = 120
+        text_height = 40
+        bg_x = self.screen_width - text_width - 20
+        bg_y = self.screen_height - text_height - 20
+
+        bg_rect = pygame.Rect(bg_x, bg_y, text_width, text_height)
+        pygame.draw.rect(screen, bg_color, bg_rect)
+        pygame.draw.rect(screen, type_color, bg_rect, 2)
+
+        # 繪製投射物類型文字
+        projectile_text = self.fonts["small"].render(type_text, True, type_color)
+        text_rect = projectile_text.get_rect(center=bg_rect.center)
+        screen.blit(projectile_text, text_rect)
+
+        # 繪製切換提示
+        hint_text = self.fonts["tiny"].render(
+            "V: 切換", True, self.ui_colors["secondary"]
+        )
+        hint_rect = hint_text.get_rect(centerx=bg_rect.centerx, bottom=bg_y - 5)
+        screen.blit(hint_text, hint_rect)
 
     def draw_pause_menu(self, screen: pygame.Surface):
         """

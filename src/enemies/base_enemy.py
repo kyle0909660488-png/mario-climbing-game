@@ -102,6 +102,11 @@ class BaseEnemy(ABC):
         self.burn_damage_interval = 60  # 燃燒傷害間隔（1秒 = 60幀）
         self.burn_particle_timer = 0  # 燃燒粒子效果計時器
 
+        # 暈眩狀態效果
+        self.is_stunned = False
+        self.stunned_time = 0  # 暈眩剩餘時間（幀數）
+        self.original_ai_state = None  # 記錄暈眩前的 AI 狀態
+
         # 視覺效果
         self.animation_frame = 0
         self.sprite_flip = False
@@ -167,8 +172,9 @@ class BaseEnemy(ABC):
         # 更新基本屬性
         self._update_base_properties()
 
-        # 更新 AI 行為
-        self.update_ai(player, platforms)
+        # 只有不在暈眩狀態時才更新 AI 行為
+        if not self.is_stunned:
+            self.update_ai(player, platforms)
 
         # 應用物理效果（傳入平台資料）
         self._apply_physics(platforms)
@@ -192,6 +198,9 @@ class BaseEnemy(ABC):
 
         # 更新燃燒狀態
         self._update_burn_effect()
+
+        # 更新暈眩狀態
+        self._update_stun_effect()
 
         # 更新動畫幀
         self.animation_frame += 1
@@ -521,6 +530,55 @@ class BaseEnemy(ABC):
 
         # 輕微的視覺反饋（較短的閃爍）
         self.damage_flash_timer = 5  # 燃燒傷害的閃爍時間較短
+
+    def _update_stun_effect(self):
+        """
+        更新暈眩狀態效果\n
+        \n
+        處理敵人暈眩時的狀態管理\n
+        """
+        if not self.is_stunned or self.is_dead:
+            return
+
+        # 減少暈眩剩餘時間
+        if self.stunned_time > 0:
+            self.stunned_time -= 1
+
+            # 暈眩期間停止移動
+            self.velocity_x = 0
+        else:
+            # 暈眩時間結束，恢復正常狀態
+            self.is_stunned = False
+            # 恢復之前的 AI 狀態（如果有記錄的話）
+            if self.original_ai_state:
+                self.ai_state = self.original_ai_state
+                self.original_ai_state = None
+
+    def apply_stun(self, duration: int):
+        """
+        施加暈眩效果\n
+        \n
+        讓敵人進入暈眩狀態，暫停 AI 行為\n
+        \n
+        參數:\n
+        duration (int): 暈眩持續時間（幀數）\n
+        """
+        if self.is_dead:
+            return
+
+        # 記錄當前 AI 狀態（如果不是已經在暈眩中）
+        if not self.is_stunned:
+            self.original_ai_state = self.ai_state
+
+        # 設定暈眩狀態
+        self.is_stunned = True
+        self.stunned_time = max(self.stunned_time, duration)  # 使用較長的持續時間
+
+        # 立即停止移動
+        self.velocity_x = 0
+
+        # 顯示暈眩效果
+        print(f"敵人被暈眩了！持續時間：{duration} 幀")
         """
         更新死亡動畫\n
         \n
