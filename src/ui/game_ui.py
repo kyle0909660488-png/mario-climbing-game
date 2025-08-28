@@ -364,25 +364,25 @@ class GameUI:
         value_rect = value_text.get_rect(right=x + width, centery=y + bar_height // 2)
         screen.blit(value_text, value_rect)
 
-    def draw_game_ui(self, screen: pygame.Surface, player, level_number: int):
+    def draw_game_ui(self, screen: pygame.Surface, player, level_manager):
         """
         繪製遊戲中的 HUD 介面\n
         \n
-        顯示玩家狀態、關卡資訊等重要資料\n
+        顯示玩家狀態、關卡資訊、剩餘敵人數量等重要資料\n
         \n
         參數:\n
         screen (pygame.Surface): 螢幕表面\n
         player: 玩家物件\n
-        level_number (int): 當前關卡編號\n
+        level_manager: 關卡管理器物件\n
         """
-        # 繪製玩家血量條和攻擊模式指示器
-        self._draw_player_health(screen, player)
+        # 繪製玩家血量條和攻擊模式指示器，並取得下一個可用的Y位置
+        next_y = self._draw_player_health(screen, player)
 
-        # 繪製關卡資訊
-        self._draw_level_info(screen, level_number)
+        # 繪製關卡資訊（包含剩餘敵人數量）
+        self._draw_level_info(screen, level_manager)
 
-        # 繪製藥水庫存（在關卡資訊下方）
-        self._draw_potion_inventory(screen, player)
+        # 繪製藥水庫存（在攻擊模式指示器下方）
+        self._draw_potion_inventory(screen, player, next_y)
 
         # 繪製操作提示
         self._draw_controls_hint(screen)
@@ -392,6 +392,9 @@ class GameUI:
         繪製玩家血量條、護盾和狀態效果\n
         \n
         在螢幕左上角顯示玩家的血量狀態、護盾值和攻擊模式\n
+        \n
+        回傳:\n
+        int: 下一個可用的 Y 座標位置\n
         """
         # 血量條位置和大小
         bar_x = 20
@@ -476,8 +479,10 @@ class GameUI:
             screen.blit(boost_text, (bar_x, attack_boost_y))
             attack_boost_y += 15
 
-        # 在血條下方顯示攻擊模式
-        self._draw_attack_mode_indicator(screen, player, bar_x, attack_boost_y)
+        # 在血條下方顯示攻擊模式，並取得下一個可用位置
+        next_y = self._draw_attack_mode_indicator(screen, player, bar_x, attack_boost_y)
+
+        return next_y
 
     def _draw_attack_mode_indicator(
         self, screen: pygame.Surface, player, x: int, y: int
@@ -492,10 +497,13 @@ class GameUI:
         player: 玩家物件\n
         x (int): 指示器 X 座標\n
         y (int): 指示器 Y 座標\n
+        \n
+        回傳:\n
+        int: 下一個可用的 Y 座標位置\n
         """
         # 檢查玩家是否有投射物類型屬性
         if not hasattr(player, "projectile_type"):
-            return
+            return y
 
         # 根據投射物類型設定顯示內容和顏色
         if player.projectile_type == "fireball":
@@ -539,17 +547,50 @@ class GameUI:
         hint_y = y + bg_height // 2 - hint_text.get_height() // 2
         screen.blit(hint_text, (hint_x, hint_y))
 
-    def _draw_level_info(self, screen: pygame.Surface, level_number: int):
+        # 回傳下一個可用的Y位置（攻擊模式指示器下方加一些間距）
+        return y + bg_height + 10
+
+    def _draw_level_info(self, screen: pygame.Surface, level_manager):
         """
         繪製關卡資訊\n
         \n
-        在螢幕右上角顯示當前關卡\n
+        在螢幕右上角顯示當前關卡和剩餘敵人數量\n
         """
-        info_text = self.fonts["medium"].render(
+        # 取得關卡資訊
+        level_info = level_manager.get_level_info()
+        level_number = level_info["number"]
+        remaining_enemies = level_info["remaining_enemies"]
+
+        # 關卡編號
+        level_text = self.fonts["medium"].render(
             f"第 {level_number} 關", True, self.ui_colors["accent"]
         )
-        info_rect = info_text.get_rect(right=self.screen_width - 20, top=20)
-        screen.blit(info_text, info_rect)
+        level_rect = level_text.get_rect(right=self.screen_width - 20, top=20)
+        screen.blit(level_text, level_rect)
+
+        # 剩餘敵人數量 - 顯示在關卡編號下方
+        enemy_color = (
+            self.ui_colors["danger"]
+            if remaining_enemies > 0
+            else self.ui_colors["success"]
+        )
+        enemy_text = self.fonts["small"].render(
+            f"剩餘敵人: {remaining_enemies}", True, enemy_color
+        )
+        enemy_rect = enemy_text.get_rect(
+            right=self.screen_width - 20, top=level_rect.bottom + 5
+        )
+        screen.blit(enemy_text, enemy_rect)
+
+        # 如果沒有剩餘敵人，顯示可以過關的提示
+        if remaining_enemies == 0:
+            clear_text = self.fonts["tiny"].render(
+                "可以前往關卡頂部過關！", True, self.ui_colors["success"]
+            )
+            clear_rect = clear_text.get_rect(
+                right=self.screen_width - 20, top=enemy_rect.bottom + 3
+            )
+            screen.blit(clear_text, clear_rect)
 
     def _draw_controls_hint(self, screen: pygame.Surface):
         """
@@ -754,15 +795,19 @@ class GameUI:
             # 繪製簡單的星星（小圓點）
             pygame.draw.circle(screen, (255, 215, 0), (star_x, star_y), 3)
 
-    def _draw_potion_inventory(self, screen: pygame.Surface, player):
+    def _draw_potion_inventory(self, screen: pygame.Surface, player, start_y: int):
         """
         繪製藥水庫存信息\n
         \n
-        在螢幕右上角關卡資訊下方顯示藥水持有數量\n
+        在攻擊模式指示器下方顯示藥水持有數量\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 螢幕表面\n
+        player: 玩家物件\n
+        start_y (int): 開始繪製的 Y 座標位置\n
         """
-        # 藥水顯示位置（在關卡資訊下方）
-        start_x = self.screen_width - 20
-        start_y = 60  # 關卡資訊下方一些距離
+        # 藥水顯示位置（在攻擊模式指示器下方）
+        start_x = 20  # 與攻擊模式指示器對齊
 
         # 藥水資訊配置
         potion_info = [
@@ -772,16 +817,16 @@ class GameUI:
         ]
 
         for i, potion in enumerate(potion_info):
-            y_pos = start_y + i * 25
+            y_pos = start_y + i * 18  # 縮小行間距避免佔用太多空間
             count = player.get_potion_count(potion["type"])
 
             # 顯示藥水名稱和數量
             text = f"[{potion['key']}] {potion['name']}: {count}"
-            rendered_text = self.fonts["small"].render(text, True, potion["color"])
-            text_rect = rendered_text.get_rect(right=start_x, y=y_pos)
+            rendered_text = self.fonts["tiny"].render(text, True, potion["color"])
+            text_rect = rendered_text.get_rect(left=start_x, y=y_pos)
             screen.blit(rendered_text, text_rect)
 
-            # 在數量為0時顯示灰色
+            # 在數量為0時顯示灰色覆蓋
             if count == 0:
                 gray_overlay = pygame.Surface(rendered_text.get_size(), pygame.SRCALPHA)
                 gray_overlay.fill((128, 128, 128, 100))

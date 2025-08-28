@@ -445,13 +445,36 @@ class MarioClimbingGame:
         """
         檢查關卡切換條件\n
         \n
-        檢查玩家是否到達關卡目標位置或完成特定任務，\n
+        檢查玩家是否到達關卡目標位置，同時確保所有敵人都被擊敗，\n
         符合條件就切換到下一關\n
         """
         current_level = self.level_manager.get_current_level()
 
-        # 如果玩家到達關卡頂部，就進入下一關
+        # 首先檢查玩家是否到達關卡頂部
         if self.player.y < current_level.level_completion_height:
+            # 檢查過關條件：必須擊敗所有敵人才能進入下一關
+            if not self.level_manager.are_all_enemies_defeated():
+                # 如果還有敵人存活，阻止玩家前進並給予提示
+                remaining_enemies = self.level_manager.get_remaining_enemy_count()
+
+                # 將玩家推回到安全位置，避免卡在關卡邊界
+                self.player.y = current_level.level_completion_height + 50
+
+                # 提示玩家還需要擊敗敵人（每秒最多顯示一次，避免洗版）
+                if not hasattr(self, "_last_enemy_warning_time"):
+                    self._last_enemy_warning_time = 0
+
+                import time
+
+                current_time = time.time()
+                if current_time - self._last_enemy_warning_time > 2:  # 2秒間隔
+                    print(
+                        f"還有 {remaining_enemies} 個敵人存活！必須擊敗所有敵人才能進入下一關"
+                    )
+                    self._last_enemy_warning_time = current_time
+
+                return
+
             # 檢查是否為最終關卡（第六關）
             if self.level_manager.current_level_number == 6:
                 # 第六關：檢查是否所有 Boss 都被擊敗了
@@ -463,7 +486,7 @@ class MarioClimbingGame:
                     self.player.y = current_level.level_completion_height + 50
                     return
 
-            # 非最終關卡的正常切換邏輯
+            # 所有敵人都被擊敗且到達目標高度，可以進入下一關
             success = self.level_manager.advance_to_next_level()
             if success:
                 # 重新定位玩家到新關卡的起始位置
@@ -473,6 +496,15 @@ class MarioClimbingGame:
 
                 # 立即更新相機位置到新位置，避免切換關卡時的跳躍
                 self.camera_y = self.player.y - SCREEN_HEIGHT // 2
+
+                # 顯示通關訊息
+                print(
+                    f"成功通過第 {self.level_manager.current_level_number - 1} 關！進入第 {self.level_manager.current_level_number} 關"
+                )
+
+            # 重置警告時間，為新關卡做準備
+            if hasattr(self, "_last_enemy_warning_time"):
+                del self._last_enemy_warning_time
 
     def _all_bosses_defeated(self) -> bool:
         """
@@ -550,10 +582,8 @@ class MarioClimbingGame:
                 self.screen, self.camera_y + SCREEN_HEIGHT // 2
             )  # 傳入視角偏移
 
-            # 畫 UI 資訊（血量、分數、關卡資訊）
-            self.ui.draw_game_ui(
-                self.screen, self.player, self.level_manager.current_level_number
-            )
+            # 畫 UI 資訊（血量、分數、關卡資訊、剩餘敵人數）
+            self.ui.draw_game_ui(self.screen, self.player, self.level_manager)
 
         elif self.game_state == "paused":
             # 暫停時先畫遊戲畫面（但不更新），再畫暫停選單
@@ -561,9 +591,7 @@ class MarioClimbingGame:
                 current_level = self.level_manager.get_current_level()
                 current_level.render(self.screen, self.camera_y + SCREEN_HEIGHT // 2)
                 self.player.render(self.screen, self.camera_y + SCREEN_HEIGHT // 2)
-                self.ui.draw_game_ui(
-                    self.screen, self.player, self.level_manager.current_level_number
-                )
+                self.ui.draw_game_ui(self.screen, self.player, self.level_manager)
 
             # 在遊戲畫面上方畫暫停選單
             self.ui.draw_pause_menu(self.screen)

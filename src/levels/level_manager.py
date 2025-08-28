@@ -517,6 +517,43 @@ class LevelManager:
         current_level = self.get_current_level()
         current_level.update(player)
 
+    def are_all_enemies_defeated(self) -> bool:
+        """
+        檢查當前關卡的所有敵人是否都被擊敗\n
+        \n
+        這是新的過關條件，玩家必須擊敗關卡中的所有敵人才能進入下一關\n
+        \n
+        回傳:\n
+        bool: 是否所有敵人都已被擊敗（關卡中沒有存活的敵人）\n
+        """
+        current_level = self.get_current_level()
+
+        # 檢查是否還有存活的敵人
+        for enemy in current_level.enemies:
+            if enemy.health > 0:  # 如果還有存活的敵人，返回 False
+                return False
+
+        return True  # 所有敵人都被擊敗了
+
+    def get_remaining_enemy_count(self) -> int:
+        """
+        取得當前關卡剩餘的敵人數量\n
+        \n
+        用於 UI 顯示，讓玩家知道還需要擊敗多少敵人\n
+        \n
+        回傳:\n
+        int: 剩餘存活的敵人數量\n
+        """
+        current_level = self.get_current_level()
+        remaining_count = 0
+
+        # 計算存活的敵人數量
+        for enemy in current_level.enemies:
+            if enemy.health > 0:
+                remaining_count += 1
+
+        return remaining_count
+
     def get_level_info(self) -> dict:
         """
         取得當前關卡資訊\n
@@ -533,4 +570,5 @@ class LevelManager:
             "name": f"第 {self.current_level_number} 關",
             "progress": f"{self.current_level_number}/{self.max_level}",
             "is_final": self.is_final_level(),
+            "remaining_enemies": self.get_remaining_enemy_count(),  # 新增剩餘敵人數
         }
