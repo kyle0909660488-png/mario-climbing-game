@@ -18,7 +18,7 @@ CHARACTER_CONFIGS = {
         "name": "疾速瑪莉歐",
         "max_health": 80,
         "speed": 8,
-        "jump_power": 14,
+        "jump_power": 15,
         "has_double_jump": False,
         "attack_damage": 15,
         "color": (0, 255, 0),  # 綠色
