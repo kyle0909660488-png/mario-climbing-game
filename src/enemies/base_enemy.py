@@ -94,6 +94,13 @@ class BaseEnemy(ABC):
         self.is_dead = False
         self.death_timer = 0
 
+        # 燃燒狀態效果
+        self.is_burning = False
+        self.burn_timer = 0  # 燃燒剩餘時間
+        self.burn_damage_timer = 0  # 燃燒傷害計時器
+        self.burn_damage_interval = 60  # 燃燒傷害間隔（1秒 = 60幀）
+        self.burn_particle_timer = 0  # 燃燒粒子效果計時器
+
         # 視覺效果
         self.animation_frame = 0
         self.sprite_flip = False
@@ -177,6 +184,9 @@ class BaseEnemy(ABC):
         if self.damage_flash_timer > 0:
             self.damage_flash_timer -= 1
 
+        # 更新燃燒狀態
+        self._update_burn_effect()
+
         # 更新動畫幀
         self.animation_frame += 1
         if self.animation_frame >= 1000:
@@ -222,6 +232,63 @@ class BaseEnemy(ABC):
         elif self.velocity_x < 0:
             self.facing_direction = -1
             self.sprite_flip = True
+
+    def _update_burn_effect(self):
+        """
+        更新燃燒狀態效果\n
+        \n
+        處理敵人燃燒時的持續傷害和視覺效果\n
+        """
+        if not self.is_burning or self.is_dead:
+            return
+
+        # 減少燃燒剩餘時間
+        if self.burn_timer > 0:
+            self.burn_timer -= 1
+
+            # 更新燃燒傷害計時器
+            self.burn_damage_timer += 1
+
+            # 每隔一定時間造成燃燒傷害
+            if self.burn_damage_timer >= self.burn_damage_interval:
+                # 造成燃燒傷害（不會觸發額外的受傷效果）
+                self._apply_burn_damage()
+                self.burn_damage_timer = 0  # 重置傷害計時器
+
+            # 更新燃燒粒子效果計時器
+            self.burn_particle_timer += 1
+        else:
+            # 燃燒時間結束，移除燃燒狀態
+            self.is_burning = False
+            self.burn_damage_timer = 0
+            self.burn_particle_timer = 0
+
+    def _apply_burn_damage(self):
+        """
+        施加燃燒傷害\n
+        \n
+        對敵人造成燃燒的持續傷害，不觸發額外效果\n
+        """
+        burn_damage = 3  # 每次燃燒傷害
+
+        # 直接減少血量，不觸發 take_damage 的額外效果
+        self.health -= burn_damage
+
+        # 血量不能低於 0
+        if self.health <= 0:
+            self.health = 0
+            self.is_dead = True
+            self.ai_state = "dead"
+            self.is_burning = False  # 死亡時移除燃燒狀態
+
+        # 輕微的視覺反饋（較短的閃爍）
+        self.damage_flash_timer = 5  # 燃燒傷害的閃爍時間較短
+        """
+        更新死亡動畫\n
+        \n
+        處理敵人死亡後的視覺效果\n
+        """
+        self.death_timer += 1
 
     def _update_death_animation(self):
         """
@@ -366,6 +433,12 @@ class BaseEnemy(ABC):
         self.animation_frame = 0
         self.facing_direction = 1
         self.patrol_direction = 1
+
+        # 重置燃燒狀態
+        self.is_burning = False
+        self.burn_timer = 0
+        self.burn_damage_timer = 0
+        self.burn_particle_timer = 0
 
     def is_in_screen_bounds(self, screen: pygame.Surface, camera_y: float) -> bool:
         """

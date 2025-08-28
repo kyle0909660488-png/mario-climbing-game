@@ -314,6 +314,10 @@ class BasicEnemy(BaseEnemy):
         # 繪製血量條
         self._draw_health_bar(screen, screen_x, screen_y - 8)
 
+        # 繪製燃燒效果（如果正在燃燒）
+        if self.is_burning:
+            self._draw_burn_effect(screen, screen_x, screen_y)
+
         # 繪製狀態指示器
         self._draw_state_indicator(screen, screen_x, screen_y)
 
@@ -371,6 +375,73 @@ class BasicEnemy(BaseEnemy):
 
         # 在敵人右上角繪製狀態點
         pygame.draw.circle(screen, state_color, (x + self.width - 5, y - 5), 4)
+
+    def _draw_burn_effect(self, screen: pygame.Surface, x: int, y: int):
+        """
+        繪製燃燒效果\n
+        \n
+        在燃燒的敵人身上繪製火焰粒子效果\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 螢幕表面\n
+        x (int): 敵人螢幕 X 座標\n
+        y (int): 敵人螢幕 Y 座標\n
+        """
+        if not self.is_burning:
+            return
+
+        import random
+        import math
+
+        # 繪製燃燒粒子效果
+        for i in range(6):  # 6個火焰粒子
+            # 粒子位置隨機分布在敵人周圍
+            offset_x = random.randint(-5, 5)
+            offset_y = random.randint(-10, 5)
+
+            particle_x = x + self.width // 2 + offset_x
+            particle_y = (
+                y + offset_y + int(math.sin(self.burn_particle_timer * 0.2 + i) * 3)
+            )
+
+            # 粒子顏色（橙紅色變化）
+            flame_colors = [
+                (255, 100, 0),  # 橙色
+                (255, 150, 0),  # 橙黃色
+                (255, 50, 0),  # 紅橙色
+                (255, 200, 0),  # 黃色
+            ]
+
+            color = flame_colors[i % len(flame_colors)]
+
+            # 根據燃燒時間調整粒子大小
+            size = 2 + int((self.burn_timer % 60) / 15)  # 大小在2-5之間變化
+
+            # 繪製火焰粒子
+            pygame.draw.circle(screen, color, (particle_x, particle_y), size)
+
+        # 繪製燃燒光暈（敵人周圍的橙色光暈）
+        glow_alpha = 50 + int(math.sin(self.burn_particle_timer * 0.1) * 30)
+        try:
+            glow_surface = pygame.Surface(
+                (self.width + 10, self.height + 10), pygame.SRCALPHA
+            )
+            glow_color = (255, 100, 0, glow_alpha)
+            pygame.draw.rect(
+                glow_surface,
+                glow_color,
+                (5, 5, self.width, self.height),
+                border_radius=3,
+            )
+            screen.blit(glow_surface, (x - 5, y - 5))
+        except:
+            # 如果透明度繪製失敗，使用普通邊框
+            pygame.draw.rect(
+                screen,
+                (255, 100, 0),
+                (x - 2, y - 2, self.width + 4, self.height + 4),
+                2,
+            )
 
     def _draw_attack_range(self, screen: pygame.Surface, camera_y: float):
         """

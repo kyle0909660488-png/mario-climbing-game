@@ -7,18 +7,18 @@ from typing import List, Tuple, Dict
 CHARACTER_CONFIGS = {
     0: {  # 平衡型角色
         "name": "平衡瑪莉歐",
-        "max_health": 100,
+        "max_health": 120,
         "speed": 5,
         "jump_power": 15,
         "has_double_jump": False,
-        "attack_damage": 20,
+        "attack_damage": 50,
         "color": (255, 0, 0),  # 紅色
     },
     1: {  # 速度型角色
         "name": "疾速瑪莉歐",
         "max_health": 80,
         "speed": 8,
-        "jump_power": 12,
+        "jump_power": 14,
         "has_double_jump": False,
         "attack_damage": 15,
         "color": (0, 255, 0),  # 綠色
@@ -27,7 +27,7 @@ CHARACTER_CONFIGS = {
         "name": "跳跳瑪莉歐",
         "max_health": 90,
         "speed": 4,
-        "jump_power": 18,
+        "jump_power": 17,
         "has_double_jump": True,
         "attack_damage": 18,
         "color": (0, 0, 255),  # 藍色
@@ -35,8 +35,8 @@ CHARACTER_CONFIGS = {
     3: {  # 坦克型角色
         "name": "坦克瑪莉歐",
         "max_health": 150,
-        "speed": 5,
-        "jump_power": 12,
+        "speed": 6,
+        "jump_power": 15,
         "has_double_jump": False,
         "attack_damage": 25,
         "color": (128, 0, 128),  # 紫色
@@ -123,16 +123,21 @@ class Player:
         self.sprint_multiplier = 1.5  # 加速時的速度倍率
         self.jump_boost_multiplier = 1.3  # 加速跳躍時的額外高度倍率
 
-        # 攻擊狀態
-        self.attack_cooldown = 0  # 攻擊冷卻時間，避免連續攻擊
+        # 攻擊狀態（改為火球攻擊）
+        self.attack_cooldown = 0  # 火球發射冷卻時間
+        self.max_attack_cooldown = 20  # 火球發射間隔（約0.33秒）
         self.is_attacking = False
         self.attack_just_started = False  # 標記攻擊是否剛開始
+
+        # 火球管理器（將在遊戲初始化時設定）
+        self.fireball_manager = None
 
         # 無敵時間（受傷後短暫無法再受傷）
         self.invulnerability_time = 0
 
         # 按鍵狀態記錄（用於實現單次觸發和跳躍緩衝）
         self.previous_jump_key_pressed = False
+        self.previous_attack_key_pressed = False  # 記錄攻擊鍵狀態
         self.jump_buffer_time = 0  # 跳躍緩衝時間，提高反應靈敏度
 
         # 回血機制相關屬性
@@ -207,13 +212,13 @@ class Player:
         # 蹲下（S 鍵或下方向鍵）- 改良版本，正確處理位置調整
         self._handle_crouch_input(keys[pygame.K_s] or keys[pygame.K_DOWN], platforms)
 
-        # 攻擊（C 鍵） - 允許連續攻擊但按鍵放開時停止攻擊
+        # 攻擊（C 鍵） - 發射火球攻擊
         attack_key_pressed = keys[pygame.K_c]
-        if attack_key_pressed:
-            self._perform_attack()
-        else:
-            # 攻擊鍵沒有按下，停止攻擊狀態
-            self.is_attacking = False
+        if attack_key_pressed and not self.previous_attack_key_pressed:
+            # 只在按鍵剛按下時觸發攻擊（單次觸發）
+            self._perform_fireball_attack()
+
+        self.previous_attack_key_pressed = attack_key_pressed
 
         # 裝備技能快捷鍵（數字鍵 1-4）
         if hasattr(self, "equipment_manager") and self.equipment_manager:
@@ -342,15 +347,46 @@ class Player:
 
         return True  # 沒有碰撞，可以站起來
 
-    def _perform_attack(self):
+    def _perform_fireball_attack(self):
         """
-        執行攻擊動作\n
+        執行火球攻擊\n
         \n
-        觸發近戰攻擊，對附近的敵人造成傷害\n
-        已移除攻擊冷卻時間，允許玩家連續攻擊\n
+        發射火球投射物，取代原本的近戰攻擊\n
+        火球會朝玩家面向的方向飛行，擊中敵人造成傷害和燃燒效果\n
         """
-        self.is_attacking = True
-        self.attack_just_started = True  # 標記攻擊剛開始
+        # 檢查攻擊冷卻時間
+        if self.attack_cooldown > 0:
+            return  # 還在冷卻中，無法攻擊
+
+        # 檢查是否有火球管理器
+        if not self.fireball_manager:
+            return  # 沒有火球管理器，無法發射火球
+
+        # 確定發射方向（根據最後的移動方向或面向方向）
+        if hasattr(self, "last_facing_direction"):
+            direction = self.last_facing_direction
+        elif abs(self.velocity_x) > 0.1:
+            # 根據當前移動方向
+            direction = 1 if self.velocity_x > 0 else -1
+        else:
+            # 預設向右發射
+            direction = 1
+
+        # 計算發射位置（在玩家中心位置）
+        launch_x = self.x + self.width // 2
+        launch_y = self.y + self.height // 2
+
+        # 創建火球
+        self.fireball_manager.create_fireball(launch_x, launch_y, direction)
+
+        # 設定攻擊冷卻時間（不需要設定 is_attacking 狀態，因為火球會自動處理碰撞）
+        self.attack_cooldown = self.max_attack_cooldown
+
+        # 更新面向方向記錄
+        self.last_facing_direction = direction
+
+        # 顯示攻擊回饋訊息
+        print(f"發射火球！方向：{'右' if direction == 1 else '左'}")
 
     def update(self, platforms: List, traps: List):
         """
@@ -366,12 +402,12 @@ class Player:
         platforms (List): 當前關卡的平台清單\n
         traps (List): 當前關卡的陷阱清單\n
         """
-        # 重置攻擊剛開始標記（每幀重置，只在攻擊的第一幀為True）
-        self.attack_just_started = False
-
         # 更新各種計時器
         if self.invulnerability_time > 0:
             self.invulnerability_time -= 1
+
+        if self.attack_cooldown > 0:
+            self.attack_cooldown -= 1
 
         # 重力作用（除非站在地面上）
         if not self.is_on_ground:
@@ -390,6 +426,12 @@ class Player:
 
         # 碰撞檢測陷阱
         self._check_trap_collisions(traps)
+
+        # 更新面向方向記錄（用於火球發射）
+        if abs(self.velocity_x) > 0.1:
+            self.last_facing_direction = 1 if self.velocity_x > 0 else -1
+        elif not hasattr(self, "last_facing_direction"):
+            self.last_facing_direction = 1  # 預設向右
 
         # 處理靜止回血機制
         self._handle_idle_healing()
@@ -757,23 +799,6 @@ class Player:
                         screen, (255, 255, 255), (line_x, line_y1), (line_x, line_y2), 2
                     )
 
-        # 如果正在攻擊，繪製攻擊範圍
-        if self.is_attacking:
-            attack_rect = self.get_attack_rect()
-            attack_screen_x = int(attack_rect.x)
-            attack_screen_y = int(attack_rect.y - camera_y + screen.get_height() // 2)
-            pygame.draw.rect(
-                screen,
-                (255, 255, 0),
-                (
-                    attack_screen_x,
-                    attack_screen_y,
-                    attack_rect.width,
-                    attack_rect.height,
-                ),
-                3,
-            )
-
         # 繪製血量條（在角色上方）
         self._draw_health_bar(screen, screen_x, screen_y - 10)
 
@@ -882,19 +907,11 @@ class Player:
         # 檢查垂直移動（在地面上且垂直速度很小）
         is_vertical_still = self.is_on_ground and abs(self.velocity_y) < 0.1
 
-        # 檢查是否沒有攻擊動作
-        is_not_attacking = not self.is_attacking
-
-        # 檢查是否沒有加速衝刺
+        # 檢查是否沒有加速衝刺（火球攻擊不影響靜止狀態）
         is_not_sprinting = not self.is_sprinting
 
         # 所有條件都滿足才算完全靜止
-        return (
-            is_horizontal_still
-            and is_vertical_still
-            and is_not_attacking
-            and is_not_sprinting
-        )
+        return is_horizontal_still and is_vertical_still and is_not_sprinting
 
     def _handle_idle_healing(self):
         """
@@ -930,6 +947,17 @@ class Player:
         else:
             # 玩家不是完全靜止，重置靜止時間計時器
             self.idle_time = 0
+
+    def set_fireball_manager(self, fireball_manager):
+        """
+        設定火球管理器\n
+        \n
+        讓玩家能夠發射火球攻擊\n
+        \n
+        參數:\n
+        fireball_manager: 火球管理器物件\n
+        """
+        self.fireball_manager = fireball_manager
 
     def set_equipment_manager(self, equipment_manager):
         """

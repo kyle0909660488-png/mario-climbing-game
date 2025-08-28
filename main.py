@@ -7,6 +7,7 @@ from src.levels.level_manager import LevelManager
 from src.ui.game_ui import GameUI
 from src.equipment.equipment_manager import EquipmentManager
 from src.equipment.equipment_item import EquipmentDropManager
+from src.projectiles.fireball import FireballManager
 
 ######################遊戲設定常數######################
 # 畫面設定
@@ -77,6 +78,7 @@ class MarioClimbingGame:
         self.ui = GameUI(SCREEN_WIDTH, SCREEN_HEIGHT)
         self.equipment_manager = EquipmentManager()
         self.equipment_drop_manager = EquipmentDropManager()
+        self.fireball_manager = FireballManager()  # 火球管理系統
 
         # 選角相關變數
         self.selected_character_index = 0  # 目前選中的角色編號
@@ -186,8 +188,9 @@ class MarioClimbingGame:
         # 初始化相機位置到玩家位置，避免開始時的跳躍
         self.camera_y = self.player.y - SCREEN_HEIGHT // 2
 
-        # 讓玩家能夠使用裝備系統
+        # 讓玩家能夠使用裝備系統和火球攻擊
         self.player.set_equipment_manager(self.equipment_manager)
+        self.player.set_fireball_manager(self.fireball_manager)
 
         # 重置關卡管理器到第一關
         self.level_manager.reset_to_first_level()
@@ -195,6 +198,7 @@ class MarioClimbingGame:
         # 清空裝備，重新開始
         self.equipment_manager.reset_equipment()
         self.equipment_drop_manager.clear_all()
+        self.fireball_manager.clear_all()  # 清空所有火球
 
         # 切換到遊戲狀態
         self.game_state = "playing"
@@ -211,6 +215,7 @@ class MarioClimbingGame:
 
         # 可選：清空掉落與裝備（保持玩家選擇狀態）
         self.equipment_drop_manager.clear_all()
+        self.fireball_manager.clear_all()  # 回到選單時清空火球
 
     def _reset_current_level(self):
         """
@@ -230,6 +235,7 @@ class MarioClimbingGame:
             character_index = getattr(self, "selected_character_index", 0)
             self.player = Player(start_x, start_y, character_index)
             self.player.set_equipment_manager(self.equipment_manager)
+            self.player.set_fireball_manager(self.fireball_manager)  # 設定火球管理器
         else:
             # 將玩家位置、速度與狀態重置
             self.player.x = current_level.player_start_x
@@ -251,6 +257,7 @@ class MarioClimbingGame:
 
         # 重置裝備掉落（保留玩家已裝備的套裝，但清空場上的掉落物）
         self.equipment_drop_manager.clear_all()
+        self.fireball_manager.clear_all()  # 重置時清空所有火球
 
     def update(self):
         """
@@ -293,6 +300,11 @@ class MarioClimbingGame:
 
             # 更新當前關卡（敵人移動、陷阱動作）
             self.level_manager.update(self.player)
+
+            # 更新火球系統（火球會自動處理與敵人的碰撞和傷害）
+            self.fireball_manager.update(
+                all_platforms, current_level.enemies, SCREEN_WIDTH
+            )
 
             # 更新裝備效果
             self.equipment_manager.update(self.player)
@@ -477,6 +489,11 @@ class MarioClimbingGame:
 
             # 畫裝備掉落物品（使用平滑的相機位置）
             self.equipment_drop_manager.draw(self.screen, 0, self.camera_y)
+
+            # 畫火球（使用平滑的相機位置）
+            self.fireball_manager.render_all(
+                self.screen, self.camera_y + SCREEN_HEIGHT // 2
+            )
 
             # 畫玩家角色（使用平滑的相機位置）
             self.player.render(
