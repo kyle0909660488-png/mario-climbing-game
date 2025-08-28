@@ -143,6 +143,20 @@ class Player:
         self.last_velocity_x = 0  # 記錄上一幀的水平速度，用於檢測是否停止移動
         self.last_velocity_y = 0  # 記錄上一幀的垂直速度，用於檢測是否停止移動
 
+        # 藥水效果系統
+        self.shield = 0  # 當前護盾值
+        self.max_shield = 100  # 最大護盾值
+        self.attack_boost_percentage = 0  # 攻擊力加成百分比
+        self.attack_boost_duration = 0  # 攻擊力加成剩餘時間（幀數）
+
+        # 藥水庫存系統
+        self.potion_inventory = {
+            "healing": 0,  # 治療藥水數量
+            "shield": 0,  # 護盾藥水數量
+            "attack": 0,  # 攻擊藥水數量
+        }
+        self.max_potion_count = 99  # 每種藥水最大持有數量
+
         # 裝備管理器引用
         self.equipment_manager = None
 
@@ -393,17 +407,18 @@ class Player:
         launch_y = self.y + self.height // 2
 
         # 根據投射物類型發射對應的投射物
+        current_damage = self.get_current_attack_damage()
         if self.projectile_type == "fireball":
             # 檢查是否有火球管理器
             if self.fireball_manager:
                 self.fireball_manager.create_fireball(
-                    launch_x, launch_y, direction, self.attack_damage
+                    launch_x, launch_y, direction, current_damage
                 )
         elif self.projectile_type == "iceball":
             # 檢查是否有冰球管理器
             if self.iceball_manager:
                 self.iceball_manager.create_iceball(
-                    launch_x, launch_y, direction, self.attack_damage
+                    launch_x, launch_y, direction, current_damage
                 )
 
         # 設定攻擊冷卻時間
@@ -445,6 +460,13 @@ class Player:
 
         if self.attack_cooldown > 0:
             self.attack_cooldown -= 1
+
+        # 更新攻擊力增強效果倒數
+        if self.attack_boost_duration > 0:
+            self.attack_boost_duration -= 1
+            # 攻擊力增強效果結束
+            if self.attack_boost_duration <= 0:
+                self.attack_boost_percentage = 0
 
         # 重力作用（除非站在地面上）
         if not self.is_on_ground:
@@ -730,31 +752,30 @@ class Player:
         """
         角色受到傷害\n
         \n
-        減少角色血量，觸發無敵時間防止連續受傷\n
+        護盾優先承受傷害，護盾不足時血量承受剩餘傷害\n
+        觸發無敵時間防止連續受傷\n
         \n
         參數:\n
         damage (int): 受到的傷害數值\n
         """
         if self.invulnerability_time <= 0:
-            self.health -= damage
+            remaining_damage = damage
+
+            # 護盾先承受傷害
+            if self.shield > 0:
+                shield_absorbed = min(self.shield, remaining_damage)
+                self.shield -= shield_absorbed
+                remaining_damage -= shield_absorbed
+
+            # 剩餘傷害由血量承受
+            if remaining_damage > 0:
+                self.health -= remaining_damage
+
             self.invulnerability_time = 60  # 60 幀的無敵時間（1秒）
 
             # 血量不能低於 0
             if self.health < 0:
                 self.health = 0
-
-    def heal(self, amount: int):
-        """
-        角色恢復血量\n
-        \n
-        增加角色血量，不能超過最大值\n
-        \n
-        參數:\n
-        amount (int): 恢復的血量數值\n
-        """
-        self.health += amount
-        if self.health > self.max_health:
-            self.health = self.max_health
 
     def get_attack_rect(self) -> pygame.Rect:
         """
@@ -1017,3 +1038,129 @@ class Player:
         equipment_manager: 裝備管理器物件\n
         """
         self.equipment_manager = equipment_manager
+
+    ######################藥水效果方法######################
+    def heal(self, amount: int):
+        """
+        治療玩家，回復血量\n
+        \n
+        回復指定數量的血量，不會超過最大血量\n
+        \n
+        參數:\n
+        amount (int): 回復的血量，範圍 > 0\n
+        """
+        if amount > 0:
+            self.health = min(self.max_health, self.health + amount)
+
+    def add_shield(self, amount: int):
+        """
+        為玩家增加護盾\n
+        \n
+        護盾在血量之前承受傷害，有最大值限制\n
+        \n
+        參數:\n
+        amount (int): 增加的護盾值，範圍 > 0\n
+        """
+        if amount > 0:
+            self.shield = min(self.max_shield, self.shield + amount)
+
+    def add_attack_boost(self, percentage: int, duration_frames: int):
+        """
+        為玩家增加攻擊力提升效果\n
+        \n
+        在指定時間內提升攻擊力，多次使用會重新計算持續時間\n
+        \n
+        參數:\n
+        percentage (int): 攻擊力提升百分比，範圍 > 0\n
+        duration_frames (int): 持續時間（幀數），範圍 > 0\n
+        """
+        if percentage > 0 and duration_frames > 0:
+            self.attack_boost_percentage = percentage
+            self.attack_boost_duration = duration_frames
+
+    def get_current_attack_damage(self) -> int:
+        """
+        獲取當前實際攻擊力\n
+        \n
+        考慮攻擊力增強效果的修正值\n
+        \n
+        回傳:\n
+        int: 當前攻擊力數值\n
+        """
+        base_damage = self.attack_damage
+        if self.attack_boost_percentage > 0:
+            boost_multiplier = 1.0 + (self.attack_boost_percentage / 100.0)
+            return int(base_damage * boost_multiplier)
+        return base_damage
+
+    ######################藥水庫存管理方法######################
+    def add_potion(self, potion_type: str, count: int = 1) -> bool:
+        """
+        添加藥水到庫存\n
+        \n
+        參數:\n
+        potion_type (str): 藥水類型 ('healing', 'shield', 'attack')\n
+        count (int): 要添加的數量\n
+        \n
+        回傳:\n
+        bool: 是否成功添加（false表示庫存已滿）\n
+        """
+        if potion_type in self.potion_inventory:
+            current_count = self.potion_inventory[potion_type]
+            if current_count < self.max_potion_count:
+                self.potion_inventory[potion_type] = min(
+                    self.max_potion_count, current_count + count
+                )
+                return True
+        return False
+
+    def use_healing_potion(self) -> bool:
+        """
+        使用治療藥水\n
+        \n
+        回傳:\n
+        bool: 是否成功使用\n
+        """
+        if self.potion_inventory["healing"] > 0 and self.health < self.max_health:
+            self.potion_inventory["healing"] -= 1
+            self.heal(60)  # 回復60血
+            return True
+        return False
+
+    def use_shield_potion(self) -> bool:
+        """
+        使用護盾藥水\n
+        \n
+        回傳:\n
+        bool: 是否成功使用\n
+        """
+        if self.potion_inventory["shield"] > 0 and self.shield < self.max_shield:
+            self.potion_inventory["shield"] -= 1
+            self.add_shield(50)  # 增加50護盾
+            return True
+        return False
+
+    def use_attack_potion(self) -> bool:
+        """
+        使用攻擊藥水\n
+        \n
+        回傳:\n
+        bool: 是否成功使用\n
+        """
+        if self.potion_inventory["attack"] > 0:
+            self.potion_inventory["attack"] -= 1
+            self.add_attack_boost(50, 900)  # 50%攻擊力加成，持續15秒
+            return True
+        return False
+
+    def get_potion_count(self, potion_type: str) -> int:
+        """
+        獲取指定藥水的持有數量\n
+        \n
+        參數:\n
+        potion_type (str): 藥水類型\n
+        \n
+        回傳:\n
+        int: 持有數量\n
+        """
+        return self.potion_inventory.get(potion_type, 0)

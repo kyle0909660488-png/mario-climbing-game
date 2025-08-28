@@ -356,14 +356,17 @@ class GameUI:
         # 繪製關卡資訊
         self._draw_level_info(screen, level_number)
 
+        # 繪製藥水庫存（在關卡資訊下方）
+        self._draw_potion_inventory(screen, player)
+
         # 繪製操作提示
         self._draw_controls_hint(screen)
 
     def _draw_player_health(self, screen: pygame.Surface, player):
         """
-        繪製玩家血量條\n
+        繪製玩家血量條、護盾和狀態效果\n
         \n
-        在螢幕左上角顯示玩家的血量狀態和攻擊模式\n
+        在螢幕左上角顯示玩家的血量狀態、護盾值和攻擊模式\n
         """
         # 血量條位置和大小
         bar_x = 20
@@ -371,7 +374,7 @@ class GameUI:
         bar_width = 200
         bar_height = 20
 
-        # 背景
+        # 血量條背景
         bg_rect = pygame.Rect(bar_x, bar_y, bar_width, bar_height)
         pygame.draw.rect(screen, (50, 50, 50), bg_rect)
         pygame.draw.rect(screen, (255, 255, 255), bg_rect, 2)
@@ -401,14 +404,55 @@ class GameUI:
         )
         screen.blit(health_text, text_rect)
 
+        # 護盾條（如果有護盾值）
+        shield_y = bar_y + bar_height + 5
+        if hasattr(player, "shield") and player.shield > 0:
+            # 護盾條背景
+            shield_bg_rect = pygame.Rect(bar_x, shield_y, bar_width, 15)
+            pygame.draw.rect(screen, (30, 30, 60), shield_bg_rect)
+            pygame.draw.rect(screen, (100, 150, 255), shield_bg_rect, 2)
+
+            # 護盾填充
+            shield_ratio = player.shield / player.max_shield
+            shield_fill_width = int(bar_width * shield_ratio)
+
+            if shield_fill_width > 0:
+                shield_fill_rect = pygame.Rect(bar_x, shield_y, shield_fill_width, 15)
+                pygame.draw.rect(screen, (50, 150, 255), shield_fill_rect)
+
+            # 護盾數值文字
+            shield_text = self.fonts["tiny"].render(
+                f"護盾: {player.shield}/{player.max_shield}", True, (200, 220, 255)
+            )
+            screen.blit(shield_text, (bar_x + bar_width + 10, shield_y))
+
         # 角色名稱
         name_text = self.fonts["tiny"].render(
             player.name, True, self.ui_colors["secondary"]
         )
         screen.blit(name_text, (bar_x, bar_y - 15))
 
+        # 攻擊力增強效果顯示
+        attack_boost_y = (
+            shield_y + 20
+            if (hasattr(player, "shield") and player.shield > 0)
+            else bar_y + bar_height + 10
+        )
+        if (
+            hasattr(player, "attack_boost_percentage")
+            and player.attack_boost_percentage > 0
+        ):
+            # 顯示攻擊力增強效果
+            boost_text = self.fonts["tiny"].render(
+                f"攻擊力 +{player.attack_boost_percentage}% ({player.attack_boost_duration // 60}秒)",
+                True,
+                (255, 200, 50),
+            )
+            screen.blit(boost_text, (bar_x, attack_boost_y))
+            attack_boost_y += 15
+
         # 在血條下方顯示攻擊模式
-        self._draw_attack_mode_indicator(screen, player, bar_x, bar_y + bar_height + 10)
+        self._draw_attack_mode_indicator(screen, player, bar_x, attack_boost_y)
 
     def _draw_attack_mode_indicator(
         self, screen: pygame.Surface, player, x: int, y: int
@@ -684,3 +728,36 @@ class GameUI:
 
             # 繪製簡單的星星（小圓點）
             pygame.draw.circle(screen, (255, 215, 0), (star_x, star_y), 3)
+
+    def _draw_potion_inventory(self, screen: pygame.Surface, player):
+        """
+        繪製藥水庫存信息\n
+        \n
+        在螢幕右上角關卡資訊下方顯示藥水持有數量\n
+        """
+        # 藥水顯示位置（在關卡資訊下方）
+        start_x = self.screen_width - 20
+        start_y = 60  # 關卡資訊下方一些距離
+
+        # 藥水資訊配置
+        potion_info = [
+            {"type": "attack", "name": "攻擊藥水", "key": "1", "color": (255, 200, 50)},
+            {"type": "shield", "name": "護盾藥水", "key": "2", "color": (50, 150, 255)},
+            {"type": "healing", "name": "治療藥水", "key": "3", "color": (255, 50, 50)},
+        ]
+
+        for i, potion in enumerate(potion_info):
+            y_pos = start_y + i * 25
+            count = player.get_potion_count(potion["type"])
+
+            # 顯示藥水名稱和數量
+            text = f"[{potion['key']}] {potion['name']}: {count}"
+            rendered_text = self.fonts["small"].render(text, True, potion["color"])
+            text_rect = rendered_text.get_rect(right=start_x, y=y_pos)
+            screen.blit(rendered_text, text_rect)
+
+            # 在數量為0時顯示灰色
+            if count == 0:
+                gray_overlay = pygame.Surface(rendered_text.get_size(), pygame.SRCALPHA)
+                gray_overlay.fill((128, 128, 128, 100))
+                screen.blit(gray_overlay, text_rect)

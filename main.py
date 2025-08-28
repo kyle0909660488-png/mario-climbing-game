@@ -6,7 +6,7 @@ from src.characters.player import Player
 from src.levels.level_manager import LevelManager
 from src.ui.game_ui import GameUI
 from src.equipment.equipment_manager import EquipmentManager
-from src.equipment.equipment_item import EquipmentDropManager
+from src.equipment.potion import PotionDropManager
 from src.projectiles.fireball import FireballManager
 from src.projectiles.iceball import IceballManager
 
@@ -78,7 +78,7 @@ class MarioClimbingGame:
         self.level_manager = LevelManager()
         self.ui = GameUI(SCREEN_WIDTH, SCREEN_HEIGHT)
         self.equipment_manager = EquipmentManager()
-        self.equipment_drop_manager = EquipmentDropManager()
+        self.potion_drop_manager = PotionDropManager()
         self.fireball_manager = FireballManager()  # 火球管理系統
         self.iceball_manager = IceballManager()  # 冰球管理系統
 
@@ -128,6 +128,51 @@ class MarioClimbingGame:
                     # 如果在遊戲結束畫面，也接受 Q 重新開始當前關卡
                     elif self.game_state == "game_over":
                         self._reset_current_level()
+                    continue
+
+                # F5 鍵按下測試藥水掉落（在玩家附近掉落所有類型的藥水）
+                elif event.key == pygame.K_F5:
+                    if self.game_state == "playing" and self.player:
+                        # 強制掉落三種藥水各一個，方便測試
+                        self.potion_drop_manager.force_drop_potion(
+                            self.player.x - 50, self.player.y, "healing"
+                        )
+                        self.potion_drop_manager.force_drop_potion(
+                            self.player.x, self.player.y, "shield"
+                        )
+                        self.potion_drop_manager.force_drop_potion(
+                            self.player.x + 50, self.player.y, "attack"
+                        )
+                        print(
+                            "測試藥水已掉落！治療藥水(左)、護盾藥水(中)、攻擊藥水(右)"
+                        )
+                    continue
+
+                # 1鍵使用攻擊藥水
+                elif event.key == pygame.K_1:
+                    if self.game_state == "playing" and self.player:
+                        if self.player.use_attack_potion():
+                            print("使用攻擊藥水！攻擊力提升50%，持續15秒")
+                        else:
+                            print("沒有攻擊藥水或效果已存在")
+                    continue
+
+                # 2鍵使用護盾藥水
+                elif event.key == pygame.K_2:
+                    if self.game_state == "playing" and self.player:
+                        if self.player.use_shield_potion():
+                            print("使用護盾藥水！獲得50點護盾")
+                        else:
+                            print("沒有護盾藥水或護盾已滿")
+                    continue
+
+                # 3鍵使用治療藥水（防禦藥水）
+                elif event.key == pygame.K_3:
+                    if self.game_state == "playing" and self.player:
+                        if self.player.use_healing_potion():
+                            print("使用防禦藥水！回復60點血量")
+                        else:
+                            print("沒有防禦藥水或血量已滿")
                     continue
                 else:
                     # 選單狀態的按鍵處理
@@ -190,7 +235,7 @@ class MarioClimbingGame:
 
         # 清空裝備，重新開始
         self.equipment_manager.reset_equipment()
-        self.equipment_drop_manager.clear_all()
+        self.potion_drop_manager.clear_all()
         self.fireball_manager.clear_all()  # 清空所有火球
         self.iceball_manager.clear_all()  # 清空所有冰球
 
@@ -208,7 +253,7 @@ class MarioClimbingGame:
         self.player = None
 
         # 可選：清空掉落與裝備（保持玩家選擇狀態）
-        self.equipment_drop_manager.clear_all()
+        self.potion_drop_manager.clear_all()
         self.fireball_manager.clear_all()  # 回到選單時清空火球
         self.iceball_manager.clear_all()  # 回到選單時清空冰球
 
@@ -252,7 +297,7 @@ class MarioClimbingGame:
         self.camera_y = self.player.y - SCREEN_HEIGHT // 2
 
         # 重置裝備掉落（保留玩家已裝備的套裝，但清空場上的掉落物）
-        self.equipment_drop_manager.clear_all()
+        self.potion_drop_manager.clear_all()
         self.fireball_manager.clear_all()  # 重置時清空所有火球
         self.iceball_manager.clear_all()  # 重置時清空所有冰球
 
@@ -311,22 +356,20 @@ class MarioClimbingGame:
             # 更新裝備效果
             self.equipment_manager.update(self.player)
 
-            # 更新裝備掉落物品
-            self.equipment_drop_manager.update()
+            # 更新藥水掉落物品
+            self.potion_drop_manager.update()
 
-            # 檢查玩家撿拾裝備
-            picked_items = self.equipment_drop_manager.check_pickup(
+            # 檢查玩家撿拾藥水
+            picked_potions = self.potion_drop_manager.check_pickup(
                 self.player.x + self.player.width // 2,  # 玩家中心點
                 self.player.y + self.player.height // 2,
-                self.equipment_manager,
+                self.player,
             )
 
-            # 如果撿到裝備，顯示提示訊息
-            if picked_items:
-                for item_info in picked_items:
-                    print(
-                        f"獲得 {item_info['set_display_name']} ({item_info['rarity_display_name']})!"
-                    )
+            # 如果撿到藥水，顯示提示訊息
+            if picked_potions:
+                for potion_info in picked_potions:
+                    print(f"收集了 {potion_info['name']}！按對應數字鍵使用")
 
             # 處理敵人死亡掉落
             self._handle_enemy_drops()
@@ -370,16 +413,16 @@ class MarioClimbingGame:
 
     def _handle_enemy_drops(self):
         """
-        處理敵人死亡時的裝備掉落\n
+        處理敵人死亡時的藥水掉落\n
         \n
-        檢查當前關卡中死亡的敵人，在其死亡位置嘗試掉落裝備\n
+        檢查當前關卡中死亡的敵人，在其死亡位置嘗試掉落藥水\n
         """
         current_level = self.level_manager.get_current_level()
 
         # 檢查所有敵人，找出剛死亡的
         for enemy in current_level.enemies[:]:  # 使用複本避免修改時出錯
             if enemy.health <= 0:
-                # 敵人死亡，嘗試掉落裝備
+                # 敵人死亡，嘗試掉落藥水
                 drop_x = enemy.x + enemy.width // 2
                 drop_y = enemy.y + enemy.height // 2
 
@@ -392,8 +435,8 @@ class MarioClimbingGame:
                 else:
                     drop_source = "basic_enemy"
 
-                # 嘗試掉落裝備
-                self.equipment_drop_manager.try_drop_item(drop_x, drop_y, drop_source)
+                # 嘗試掉落藥水（50% 基礎機率）
+                self.potion_drop_manager.try_drop_potion(drop_x, drop_y, drop_source)
 
                 # 從關卡中移除死亡的敵人
                 current_level.enemies.remove(enemy)
@@ -489,8 +532,8 @@ class MarioClimbingGame:
                 self.screen, self.camera_y + SCREEN_HEIGHT // 2
             )  # 傳入玩家高度做視角調整
 
-            # 畫裝備掉落物品（使用平滑的相機位置）
-            self.equipment_drop_manager.draw(self.screen, 0, self.camera_y)
+            # 畫藥水掉落物品（使用平滑的相機位置）
+            self.potion_drop_manager.draw(self.screen, 0, self.camera_y)
 
             # 畫火球（使用平滑的相機位置）
             self.fireball_manager.render_all(
