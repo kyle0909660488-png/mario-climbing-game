@@ -7,29 +7,29 @@ from typing import List, Tuple, Dict
 CHARACTER_CONFIGS = {
     0: {  # 平衡型角色
         "name": "平衡瑪莉歐",
-        "max_health": 120,
-        "speed": 5,
-        "jump_power": 15,
+        "max_health": 130,
+        "speed": 6,
+        "jump_power": 16,
         "has_double_jump": False,
-        "attack_damage": 50,
+        "attack_damage": 25,
         "color": (255, 0, 0),  # 紅色
     },
     1: {  # 跳躍型角色
         "name": "跳跳瑪莉歐",
-        "max_health": 90,
+        "max_health": 100,
         "speed": 4,
         "jump_power": 17,
         "has_double_jump": True,
-        "attack_damage": 18,
+        "attack_damage": 20,
         "color": (0, 0, 255),  # 藍色
     },
     2: {  # 坦克型角色
         "name": "坦克瑪莉歐",
         "max_health": 150,
-        "speed": 6,
+        "speed": 5,
         "jump_power": 15,
         "has_double_jump": False,
-        "attack_damage": 25,
+        "attack_damage": 28,
         "color": (128, 0, 128),  # 紫色
     },
 }
@@ -245,10 +245,8 @@ class Player:
         if switch_key_pressed and not self.previous_switch_key_pressed:
             if self.projectile_type == "fireball":
                 self.projectile_type = "iceball"
-                print("切換到冰凍球！")
             else:
                 self.projectile_type = "fireball"
-                print("切換到火焰球！")
 
         self.previous_switch_key_pressed = switch_key_pressed
 
@@ -398,13 +396,15 @@ class Player:
         if self.projectile_type == "fireball":
             # 檢查是否有火球管理器
             if self.fireball_manager:
-                self.fireball_manager.create_fireball(launch_x, launch_y, direction)
-                print(f"發射火焰球！方向：{'右' if direction == 1 else '左'}")
+                self.fireball_manager.create_fireball(
+                    launch_x, launch_y, direction, self.attack_damage
+                )
         elif self.projectile_type == "iceball":
             # 檢查是否有冰球管理器
             if self.iceball_manager:
-                self.iceball_manager.create_iceball(launch_x, launch_y, direction)
-                print(f"發射冰凍球！方向：{'右' if direction == 1 else '左'}")
+                self.iceball_manager.create_iceball(
+                    launch_x, launch_y, direction, self.attack_damage
+                )
 
         # 設定攻擊冷卻時間
         self.attack_cooldown = self.max_attack_cooldown

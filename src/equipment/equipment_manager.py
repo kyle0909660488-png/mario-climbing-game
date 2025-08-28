@@ -270,20 +270,61 @@ class EquipmentManager:
         """
         使用火球技能\n
         \n
-        發射火球攻擊\n
+        發射火球攻擊，傷害基於玩家攻擊力\n
         """
-        # 這裡簡化處理，實際應該創建火球物件
-        self.skill_cooldowns["fire_ball"] = 180  # 3秒冷卻
-        return True
+        # 確認火球管理器存在
+        if hasattr(player, "fireball_manager") and player.fireball_manager:
+            # 決定發射方向
+            if hasattr(player, "last_facing_direction"):
+                direction = player.last_facing_direction
+            elif abs(player.velocity_x) > 0.1:
+                direction = 1 if player.velocity_x > 0 else -1
+            else:
+                direction = 1  # 預設向右
+
+            # 計算發射位置
+            launch_x = player.x + player.width // 2
+            launch_y = player.y + player.height // 2
+
+            # 發射火球（使用玩家攻擊力）
+            player.fireball_manager.create_fireball(
+                launch_x, launch_y, direction, player.attack_damage
+            )
+
+            self.skill_cooldowns["fire_ball"] = 180  # 3秒冷卻
+            return True
+
+        return False
 
     def _use_freeze_skill(self, player) -> bool:
         """
         使用冰凍技能\n
         \n
-        凍結附近的敵人\n
+        發射冰球攻擊，傷害基於玩家攻擊力\n
         """
-        self.skill_cooldowns["freeze"] = 300  # 5秒冷卻
-        return True
+        # 確認冰球管理器存在
+        if hasattr(player, "iceball_manager") and player.iceball_manager:
+            # 決定發射方向
+            if hasattr(player, "last_facing_direction"):
+                direction = player.last_facing_direction
+            elif abs(player.velocity_x) > 0.1:
+                direction = 1 if player.velocity_x > 0 else -1
+            else:
+                direction = 1  # 預設向右
+
+            # 計算發射位置
+            launch_x = player.x + player.width // 2
+            launch_y = player.y + player.height // 2
+
+            # 發射冰球（使用玩家攻擊力）
+            player.iceball_manager.create_iceball(
+                launch_x, launch_y, direction, player.attack_damage
+            )
+
+            self.skill_cooldowns["freeze"] = 300  # 5秒冷卻
+            return True
+
+        return False
 
     def _use_invisibility_skill(self, player) -> bool:
         """

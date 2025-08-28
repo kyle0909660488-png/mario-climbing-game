@@ -576,9 +576,6 @@ class BaseEnemy(ABC):
 
         # 立即停止移動
         self.velocity_x = 0
-
-        # 顯示暈眩效果
-        print(f"敵人被暈眩了！持續時間：{duration} 幀")
         """
         更新死亡動畫\n
         \n

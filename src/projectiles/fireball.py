@@ -26,17 +26,23 @@ class Fireball:
     """
 
     def __init__(
-        self, start_x: float, start_y: float, direction: int, speed: float = 8.0
+        self,
+        start_x: float,
+        start_y: float,
+        direction: int,
+        player_attack: int = 25,
+        speed: float = 8.0,
     ):
         """
         初始化火球\n
         \n
-        根據發射位置和方向創建火球物件\n
+        根據發射位置、方向和玩家攻擊力創建火球物件\n
         \n
         參數:\n
         start_x (float): 發射起始 X 座標\n
         start_y (float): 發射起始 Y 座標\n
         direction (int): 發射方向（1: 右, -1: 左）\n
+        player_attack (int): 玩家攻擊力，用於計算火球傷害\n
         speed (float): 火球飛行速度\n
         """
         # 基本位置和移動
@@ -50,9 +56,11 @@ class Fireball:
         self.height = 12
         self.radius = 6  # 圓形碰撞檢測用
 
-        # 傷害設定
-        self.damage = 25  # 火球直接命中傷害
-        self.burn_damage = 3  # 燃燒狀態每次持續傷害
+        # 傷害設定 - 根據玩家攻擊力計算
+        self.damage = int(player_attack * 0.8)  # 火球傷害為玩家攻擊力的80%
+        self.burn_damage = max(
+            1, int(player_attack * 0.1)
+        )  # 燃燒傷害為攻擊力的10%，最少1點
         self.burn_duration = 300  # 燃燒持續時間（5秒 = 300幀）
 
         # 火球狀態
@@ -444,7 +452,9 @@ class FireballManager:
         """
         self.fireballs = []  # 儲存所有活躍的火球
 
-    def create_fireball(self, player_x: float, player_y: float, direction: int):
+    def create_fireball(
+        self, player_x: float, player_y: float, direction: int, player_attack: int = 25
+    ):
         """
         創建新火球\n
         \n
@@ -454,6 +464,7 @@ class FireballManager:
         player_x (float): 玩家 X 座標\n
         player_y (float): 玩家 Y 座標\n
         direction (int): 發射方向（1: 右, -1: 左）\n
+        player_attack (int): 玩家攻擊力，影響火球傷害\n
         """
         # 計算火球發射位置（在玩家前方稍微偏移）
         offset_x = 15 * direction  # 在玩家前方15像素
@@ -463,6 +474,7 @@ class FireballManager:
             start_x=player_x + offset_x,
             start_y=player_y + offset_y,
             direction=direction,
+            player_attack=player_attack,  # 傳入玩家攻擊力
         )
 
         self.fireballs.append(fireball)

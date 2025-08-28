@@ -160,15 +160,6 @@ class MarioClimbingGame:
                         elif event.key == pygame.K_ESCAPE:
                             self.game_state = "menu"  # 回到主選單
 
-                    # 測試功能：快速跳關（開發用）
-                    if event.key == pygame.K_F6 and self.game_state == "playing":
-                        # 跳到第六關進行Boss戰測試
-                        self.level_manager.current_level_number = 6
-                        new_level = self.level_manager.get_current_level()
-                        self.player.x = new_level.player_start_x
-                        self.player.y = new_level.player_start_y
-                        self.camera_y = self.player.y - SCREEN_HEIGHT // 2
-
     def start_game_with_character(self, character_type: int):
         """
         使用選定的角色開始遊戲\n
