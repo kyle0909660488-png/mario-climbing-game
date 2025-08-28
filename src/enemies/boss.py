@@ -88,7 +88,7 @@ class Boss(BaseEnemy):
         self.movement_timer = 0
         self.movement_pattern = "patrol"  # patrol, chase, retreat, cast
 
-    def update(self, player):
+    def update(self, player, platforms=None):
         """
         更新 Boss 狀態\n
         \n
@@ -96,6 +96,7 @@ class Boss(BaseEnemy):
         \n
         參數:\n
         player: 玩家物件\n
+        platforms (list): 平台列表，用於碰撞檢測\n
         """
         # 更新技能冷卻時間
         self._update_skill_cooldowns()
@@ -112,10 +113,10 @@ class Boss(BaseEnemy):
             self._update_skill_casting(player)
 
         # 更新物理狀態（使用基類的 update 方法）
-        super().update(player)
+        super().update(player, platforms)
 
         # 更新小兵
-        self._update_minions(player)
+        self._update_minions(player, platforms)
 
     def _update_skill_cooldowns(self):
         """
@@ -464,21 +465,22 @@ class Boss(BaseEnemy):
         else:
             self.charge_attack_active = False
 
-    def _update_minions(self, player):
+    def _update_minions(self, player, platforms=None):
         """
         更新所有小兵狀態\n
         \n
         參數:\n
         player: 玩家物件\n
+        platforms (list): 平台列表，用於小兵的碰撞檢測\n
         """
         for minion in self.minions[:]:  # 使用複本避免修改時出錯
-            minion.update(player)
+            minion.update(player, platforms)
 
             # 移除死亡的小兵
             if minion.health <= 0:
                 self.minions.remove(minion)
 
-    def update_ai(self, player):
+    def update_ai(self, player, platforms=None):
         """
         Boss AI 更新（實現抽象方法）\n
         \n
@@ -764,11 +766,15 @@ class BossMinion(BaseEnemy):
         # 小兵顏色（較淡的紅色）
         self.color = (100, 50, 50)
 
-    def update(self, player):
+    def update(self, player, platforms=None):
         """
         更新小兵狀態\n
         \n
         包含簡化的 AI 和存在時間倒數\n
+        \n
+        參數:\n
+        player: 玩家物件\n
+        platforms (list): 平台列表，用於碰撞檢測\n
         """
         # 減少存在時間
         self.lifetime -= 1
@@ -787,7 +793,7 @@ class BossMinion(BaseEnemy):
             self.state = "patrol"
 
         # 呼叫父類更新
-        super().update(player)
+        super().update(player, platforms)
 
     def draw(self, screen, camera_x=0, camera_y=0):
         """
@@ -830,7 +836,7 @@ class BossMinion(BaseEnemy):
                 (screen_x, bar_y, bar_width * health_ratio, bar_height),
             )
 
-    def update_ai(self, player):
+    def update_ai(self, player, platforms=None):
         """
         小兵 AI 更新（實現抽象方法）\n
         \n

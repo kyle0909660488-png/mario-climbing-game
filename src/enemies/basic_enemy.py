@@ -54,7 +54,7 @@ class BasicEnemy(BaseEnemy):
         self.attack_windup = 0  # 攻擊前搖時間
         self.attack_active = 0  # 攻擊判定持續時間
 
-    def update_ai(self, player):
+    def update_ai(self, player, platforms=None):
         """
         更新基本敵人的 AI 行為\n
         \n
@@ -62,9 +62,13 @@ class BasicEnemy(BaseEnemy):
         \n
         參數:\n
         player: 玩家物件\n
+        platforms (list): 平台列表，用於移動和碰撞檢測\n
         """
         if self.is_dead:
             return
+
+        # 儲存平台資料供後續使用
+        self.current_platforms = platforms
 
         # 更新狀態計時器
         if self.ai_state == "chase":
@@ -87,8 +91,8 @@ class BasicEnemy(BaseEnemy):
         參數:\n
         player: 玩家物件\n
         """
-        # 執行巡邏移動
-        self.patrol_movement()
+        # 執行巡邏移動（傳入平台資料）
+        self.patrol_movement(getattr(self, "current_platforms", None))
 
         # 檢查是否發現玩家
         if self.can_see_player(player):

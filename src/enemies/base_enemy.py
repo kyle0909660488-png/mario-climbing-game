@@ -77,6 +77,7 @@ class BaseEnemy(ABC):
         self.velocity_y = 0.0
         self.is_on_ground = False
         self.facing_direction = 1  # 1: 向右, -1: 向左
+        self.standing_on_moving_platform = None  # 追蹤當前站立的移動平台
 
         # 巡邏行為
         self.patrol_center_x = x
@@ -109,7 +110,7 @@ class BaseEnemy(ABC):
         self.has_been_touched = False
 
     @abstractmethod
-    def update_ai(self, player):
+    def update_ai(self, player, platforms=None):
         """
         更新 AI 行為（抽象方法）\n
         \n
@@ -117,6 +118,7 @@ class BaseEnemy(ABC):
         \n
         參數:\n
         player: 玩家物件\n
+        platforms (list): 平台列表，用於移動和碰撞檢測\n
         """
         pass
 
@@ -148,7 +150,7 @@ class BaseEnemy(ABC):
         """
         pass
 
-    def update(self, player):
+    def update(self, player, platforms=None):
         """
         更新敵人狀態\n
         \n
@@ -156,6 +158,7 @@ class BaseEnemy(ABC):
         \n
         參數:\n
         player: 玩家物件\n
+        platforms (list): 當前關卡的平台列表，用於碰撞檢測\n
         """
         if self.is_dead:
             self._update_death_animation()
@@ -165,10 +168,10 @@ class BaseEnemy(ABC):
         self._update_base_properties()
 
         # 更新 AI 行為
-        self.update_ai(player)
+        self.update_ai(player, platforms)
 
-        # 應用物理效果
-        self._apply_physics()
+        # 應用物理效果（傳入平台資料）
+        self._apply_physics(platforms)
 
         # 更新動畫
         self._update_animation()
@@ -195,13 +198,39 @@ class BaseEnemy(ABC):
         if self.animation_frame >= 1000:
             self.animation_frame = 0
 
-    def _apply_physics(self):
+        # 更新重置保護時間
+        if hasattr(self, "reset_protection_time") and self.reset_protection_time > 0:
+            self.reset_protection_time -= 1
+            if self.reset_protection_time <= 0:
+                self.is_emergency_resetting = False
+
+    def _apply_physics(self, platforms=None):
         """
         應用物理效果\n
         \n
-        處理重力、移動和基本物理運算\n
+        處理重力、移動和與平台的碰撞檢測\n
+        同時處理移動平台的跟隨移動\n
+        \n
+        參數:\n
+        platforms (list): 當前關卡的平台列表，用於碰撞檢測\n
         """
-        # 簡化的重力系統
+        # 如果站在移動平台上，先跟隨平台移動
+        if self.standing_on_moving_platform:
+            # 檢查是否還站在平台上
+            if self._is_still_on_moving_platform(self.standing_on_moving_platform):
+                # 跟隨移動平台
+                platform_vel_x, platform_vel_y = (
+                    self.standing_on_moving_platform.get_platform_velocity()
+                )
+                self.x += platform_vel_x
+                # 垂直方向只有當平台向上移動時才跟隨
+                if platform_vel_y < 0:  # 向上移動
+                    self.y += platform_vel_y
+            else:
+                # 已經離開平台
+                self.standing_on_moving_platform = None
+
+        # 應用重力（除非在地面上）
         if not self.is_on_ground:
             self.velocity_y += 0.5  # 重力加速度
 
@@ -209,18 +238,224 @@ class BaseEnemy(ABC):
         if self.velocity_y > 10:
             self.velocity_y = 10
 
-        # 應用速度到位置
+        # 暫存舊位置用於碰撞回退
+        old_x = self.x
+        old_y = self.y
+
+        # 應用水平移動
         self.x += self.velocity_x
+
+        # 檢查水平碰撞（與平台的邊緣碰撞）
+        if platforms:
+            if self._check_horizontal_collision(platforms):
+                self.x = old_x  # 撞到東西就回到原位
+                self.velocity_x = 0  # 停止水平移動
+
+        # 應用垂直移動
         self.y += self.velocity_y
 
+        # 檢查垂直碰撞（著陸在平台上或撞到頭）
+        if platforms:
+            collision_result = self._check_vertical_collision(platforms)
+            if collision_result:
+                if collision_result == "landing":
+                    # 著陸在平台上
+                    self.velocity_y = 0
+                    self.is_on_ground = True
+                elif collision_result == "ceiling":
+                    # 撞到天花板
+                    self.y = old_y
+                    self.velocity_y = 0
+        else:
+            # 沒有平台資料時使用簡化版本（向下兼容）
+            self._apply_simple_physics()
+
+        # 重置地面狀態（如果沒踩到任何平台）
+        if not self._is_standing_on_platform(platforms):
+            self.is_on_ground = False
+            self.standing_on_moving_platform = None  # 清除移動平台狀態
+            # 追蹤空中時間
+            if not hasattr(self, "air_time"):
+                self.air_time = 0
+            self.air_time += 1
+        else:
+            # 重置空中時間
+            if hasattr(self, "air_time"):
+                self.air_time = 0
+
+        # 死亡保護機制：根據不同情況設定觸發條件
+        # 1. 如果掉得太低（超過起始位置300像素或低於地面水平）
+        # 2. 如果在空中太久（可能卡在無限掉落循環）
+        if (
+            self.y > self.start_y + 300
+            or self.y > 800  # 一般地面高度
+            or (
+                not self.is_on_ground
+                and hasattr(self, "air_time")
+                and self.air_time > 300
+            )
+        ):
+            self._emergency_reset()
+
+    def _apply_simple_physics(self):
+        """
+        簡化版物理系統（向下兼容）\n
+        \n
+        當沒有平台資料時使用，讓敵人回到起始高度\n
+        """
         # 簡單的地面檢測（假設敵人都在地面上）
-        # 實際遊戲中應該與平台系統整合
         if self.y > self.start_y:
             self.y = self.start_y
             self.velocity_y = 0
             self.is_on_ground = True
         else:
             self.is_on_ground = False
+
+    def _check_horizontal_collision(self, platforms) -> bool:
+        """
+        檢查水平碰撞\n
+        \n
+        檢查敵人是否在水平移動時撞到平台的邊緣\n
+        \n
+        參數:\n
+        platforms (list): 平台列表\n
+        \n
+        回傳:\n
+        bool: 是否發生水平碰撞\n
+        """
+        if not platforms:
+            return False
+
+        enemy_rect = self.get_collision_rect()
+
+        for platform in platforms:
+            platform_rect = pygame.Rect(
+                platform.x, platform.y, platform.width, platform.height
+            )
+
+            # 檢查是否與平台重疊
+            if enemy_rect.colliderect(platform_rect):
+                # 檢查是否是側面碰撞（不是從上方踩到）
+                if (
+                    abs(enemy_rect.centery - platform_rect.centery)
+                    < platform_rect.height // 2
+                ):
+                    return True
+
+        return False
+
+    def _check_vertical_collision(self, platforms):
+        """
+        檢查垂直碰撞\n
+        \n
+        檢查敵人是否著陸在平台上或撞到天花板\n
+        同時處理移動平台的跟隨移動\n
+        \n
+        參數:\n
+        platforms (list): 平台列表\n
+        \n
+        回傳:\n
+        str: 碰撞類型 ('landing', 'ceiling') 或 None\n
+        """
+        if not platforms:
+            return None
+
+        enemy_rect = self.get_collision_rect()
+
+        for platform in platforms:
+            platform_rect = pygame.Rect(
+                platform.x, platform.y, platform.width, platform.height
+            )
+
+            if enemy_rect.colliderect(platform_rect):
+                # 判斷是從上方還是下方碰撞
+                if self.velocity_y > 0:  # 向下移動
+                    # 檢查是否是從上方著陸
+                    if enemy_rect.bottom - self.velocity_y <= platform_rect.top + 5:
+                        # 將敵人放在平台正上方
+                        self.y = platform_rect.top - self.height
+
+                        # 如果是移動平台，讓敵人跟隨平台移動
+                        if hasattr(platform, "get_platform_velocity"):
+                            platform_vel_x, platform_vel_y = (
+                                platform.get_platform_velocity()
+                            )
+                            # 只在水平方向跟隨移動平台，垂直方向由重力處理
+                            self.x += platform_vel_x
+                            # 記錄站在移動平台上的狀態
+                            self.standing_on_moving_platform = platform
+                        else:
+                            self.standing_on_moving_platform = None
+
+                        return "landing"
+                elif self.velocity_y < 0:  # 向上移動
+                    # 檢查是否撞到天花板
+                    if enemy_rect.top - self.velocity_y >= platform_rect.bottom - 5:
+                        return "ceiling"
+
+        return None
+
+    def _is_standing_on_platform(self, platforms) -> bool:
+        """
+        檢查敵人是否站在某個平台上\n
+        \n
+        用於更新 is_on_ground 狀態\n
+        \n
+        參數:\n
+        platforms (list): 平台列表\n
+        \n
+        回傳:\n
+        bool: 是否站在平台上\n
+        """
+        if not platforms:
+            return False
+
+        # 創建一個稍微向下延伸的檢測矩形
+        check_rect = pygame.Rect(
+            self.x + 2, self.y + self.height - 2, self.width - 4, 4
+        )
+
+        for platform in platforms:
+            platform_rect = pygame.Rect(
+                platform.x, platform.y, platform.width, platform.height
+            )
+            if check_rect.colliderect(platform_rect):
+                return True
+
+        return False
+
+    def _is_still_on_moving_platform(self, platform) -> bool:
+        """
+        檢查敵人是否還站在指定的移動平台上\n
+        \n
+        用於判斷敵人是否應該繼續跟隨平台移動\n
+        \n
+        參數:\n
+        platform: 移動平台物件\n
+        \n
+        回傳:\n
+        bool: 是否還站在平台上\n
+        """
+        if not platform:
+            return False
+
+        # 創建檢測矩形（稍微向下延伸）
+        check_rect = pygame.Rect(
+            self.x + 2, self.y + self.height - 2, self.width - 4, 6
+        )
+
+        platform_rect = pygame.Rect(
+            platform.x, platform.y, platform.width, platform.height
+        )
+
+        # 檢查水平重疊和垂直接觸
+        horizontal_overlap = (
+            check_rect.right > platform_rect.left
+            and check_rect.left < platform_rect.right
+        )
+        vertical_contact = abs(check_rect.bottom - platform_rect.top) <= 5
+
+        return horizontal_overlap and vertical_contact
 
     def _update_animation(self):
         """
@@ -362,6 +597,14 @@ class BaseEnemy(ABC):
         if self.attack_cooldown > 0:
             return False
 
+        # 掉落中的敵人不能攻擊
+        if not self.is_on_ground:
+            return False
+
+        # 正在進行緊急重置的敵人不能攻擊
+        if hasattr(self, "is_emergency_resetting") and self.is_emergency_resetting:
+            return False
+
         distance = self.get_distance_to_player(player)
         return distance <= self.attack_range
 
@@ -407,13 +650,23 @@ class BaseEnemy(ABC):
         else:
             self.velocity_x = 0
 
-    def patrol_movement(self):
+    def patrol_movement(self, platforms=None):
         """
         巡邏移動邏輯\n
         \n
-        在指定範圍內來回移動\n
+        在指定範圍內來回移動，並避免掉下懸崖\n
+        \n
+        參數:\n
+        platforms (list): 平台列表，用於懸崖檢測\n
         """
-        # 到達巡邏邊界時轉向
+        # 首先檢查前方是否有懸崖（最高優先級）
+        if platforms and self._is_cliff_ahead(platforms):
+            # 前方是懸崖，立即轉向並停止當前移動
+            self.patrol_direction *= -1
+            self.velocity_x = 0  # 立即停止移動
+            return  # 這回合不移動，避免衝出平台
+
+        # 檢查是否到達巡邏邊界
         if self.x <= self.patrol_center_x - self.patrol_range:
             self.patrol_direction = 1
         elif self.x >= self.patrol_center_x + self.patrol_range:
@@ -421,6 +674,78 @@ class BaseEnemy(ABC):
 
         # 設定巡邏速度
         self.velocity_x = self.patrol_direction * self.speed * 0.5  # 巡邏時慢一些
+
+    def _is_cliff_ahead(self, platforms) -> bool:
+        """
+        檢查前方是否有懸崖\n
+        \n
+        檢測敵人前方一小段距離內是否還有平台支撐\n
+        \n
+        參數:\n
+        platforms (list): 平台列表\n
+        \n
+        回傳:\n
+        bool: 前方是否是懸崖\n
+        """
+        if not platforms:
+            return False
+
+        # 檢測前方距離（考慮敵人的寬度和速度）
+        check_distance = max(self.width + 10, 40)  # 至少40像素，或敵人寬度+10
+
+        # 計算檢測位置（敵人前方邊緣外一點）
+        if self.patrol_direction > 0:  # 向右移動
+            check_x = self.x + self.width + 5  # 右邊緣外5像素
+        else:  # 向左移動
+            check_x = self.x - 5  # 左邊緣外5像素
+
+        # 檢測腳底位置（稍微往下一點確保能檢測到平台）
+        check_y = self.y + self.height + 2
+
+        # 創建較大的檢測矩形，確保不會漏檢
+        check_rect = pygame.Rect(check_x - 2, check_y - 2, 10, 10)
+
+        # 檢查是否有平台支撐這個檢測區域
+        for platform in platforms:
+            platform_rect = pygame.Rect(
+                platform.x, platform.y, platform.width, platform.height
+            )
+            if check_rect.colliderect(platform_rect):
+                return False  # 有平台，不是懸崖
+
+        return True  # 沒有平台，是懸崖
+
+    def _emergency_reset(self):
+        """
+        緊急重置敵人位置\n
+        \n
+        當敵人掉出地圖或遇到嚴重問題時，將其重置到安全位置\n
+        """
+        # 標記正在重置，避免攻擊
+        self.is_emergency_resetting = True
+
+        # 重置到起始位置
+        self.x = self.start_x
+        self.y = self.start_y
+
+        # 清空所有移動狀態
+        self.velocity_x = 0
+        self.velocity_y = 0
+        self.is_on_ground = True
+
+        # 重置巡邏方向，避免再次掉下
+        self.patrol_direction = 1
+
+        # 重置空中時間
+        if hasattr(self, "air_time"):
+            self.air_time = 0
+
+        # 稍微減少血量作為懲罰
+        if self.health > 10:
+            self.health -= 5
+
+        # 短暫的重置保護時間（2秒）
+        self.reset_protection_time = 120
 
     def reset(self):
         """
@@ -450,6 +775,59 @@ class BaseEnemy(ABC):
 
         # 重置追蹤激活狀態
         self.has_been_touched = False
+
+    def adjust_patrol_range_for_platforms(self, platforms):
+        """
+        根據平台調整巡邏範圍\n
+        \n
+        檢查當前巡邏範圍是否會導致敵人掉下平台，如果會就縮小範圍\n
+        \n
+        參數:\n
+        platforms (list): 當前關卡的平台列表\n
+        """
+        if not platforms:
+            return
+
+        # 找到敵人當前站立的平台
+        current_platform = None
+        enemy_rect = self.get_collision_rect()
+
+        for platform in platforms:
+            platform_rect = pygame.Rect(
+                platform.x, platform.y, platform.width, platform.height
+            )
+            # 檢查敵人是否在這個平台上（稍微放寬檢測範圍）
+            enemy_foot_rect = pygame.Rect(
+                self.x, self.y + self.height - 5, self.width, 10
+            )
+            if enemy_foot_rect.colliderect(platform_rect):
+                current_platform = platform
+                break
+
+        if current_platform:
+            # 計算安全的巡邏範圍
+            platform_left = current_platform.x
+            platform_right = current_platform.x + current_platform.width
+
+            # 保留一些邊距，避免走到平台邊緣
+            margin = max(self.width, 20)
+            safe_left = platform_left + margin
+            safe_right = platform_right - margin - self.width
+
+            # 計算從敵人位置到平台邊界的最大安全距離
+            max_left_range = max(0, self.x - safe_left)
+            max_right_range = max(0, safe_right - self.x)
+
+            # 取兩邊的最小值作為對稱的巡邏範圍
+            safe_patrol_range = min(max_left_range, max_right_range, self.patrol_range)
+
+            # 確保最小巡邏範圍不會太小
+            safe_patrol_range = max(safe_patrol_range, 30)
+
+            if safe_patrol_range < self.patrol_range:
+                self.patrol_range = safe_patrol_range
+                # 也要更新巡邏中心點，確保敵人不會超出安全範圍
+                self.patrol_center_x = self.x
 
     def is_in_screen_bounds(self, screen: pygame.Surface, camera_y: float) -> bool:
         """

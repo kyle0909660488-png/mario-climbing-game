@@ -134,12 +134,12 @@ class MarioClimbingGame:
                             # 選擇前一個角色（循環選擇）
                             self.selected_character_index = (
                                 self.selected_character_index - 1
-                            ) % 4
+                            ) % 3
                         elif event.key == pygame.K_RIGHT:
                             # 選擇下一個角色（循環選擇）
                             self.selected_character_index = (
                                 self.selected_character_index + 1
-                            ) % 4
+                            ) % 3
                         elif event.key == pygame.K_RETURN:
                             # 按 Enter 開始遊戲，建立選定的角色
                             self.start_game_with_character(
@@ -173,12 +173,11 @@ class MarioClimbingGame:
         \n
         根據角色類型建立對應的玩家物件，每種角色有不同的基礎能力：\n
         0: 平衡型角色（標準速度和跳躍）\n
-        1: 速度型角色（移動快，跳躍普通）\n
-        2: 跳躍型角色（二段跳能力）\n
-        3: 坦克型角色（血量多，移動慢）\n
+        1: 跳躍型角色（二段跳能力）\n
+        2: 坦克型角色（血量多，移動慢）\n
         \n
         參數:\n
-        character_type (int): 角色類型編號，範圍 0-3\n
+        character_type (int): 角色類型編號，範圍 0-2\n
         """
         # 建立選定的角色
         start_x = SCREEN_WIDTH // 2

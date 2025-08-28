@@ -14,16 +14,7 @@ CHARACTER_CONFIGS = {
         "attack_damage": 50,
         "color": (255, 0, 0),  # 紅色
     },
-    1: {  # 速度型角色
-        "name": "疾速瑪莉歐",
-        "max_health": 80,
-        "speed": 8,
-        "jump_power": 15,
-        "has_double_jump": False,
-        "attack_damage": 15,
-        "color": (0, 255, 0),  # 綠色
-    },
-    2: {  # 跳躍型角色
+    1: {  # 跳躍型角色
         "name": "跳跳瑪莉歐",
         "max_health": 90,
         "speed": 4,
@@ -32,7 +23,7 @@ CHARACTER_CONFIGS = {
         "attack_damage": 18,
         "color": (0, 0, 255),  # 藍色
     },
-    3: {  # 坦克型角色
+    2: {  # 坦克型角色
         "name": "坦克瑪莉歐",
         "max_health": 150,
         "speed": 6,
@@ -86,7 +77,7 @@ class Player:
         參數:\n
         start_x (float): 起始 X 座標\n
         start_y (float): 起始 Y 座標\n
-        character_type (int): 角色類型，範圍 0-3\n
+        character_type (int): 角色類型，範圍 0-2\n
         """
         # 基本位置和物理狀態
         self.x = float(start_x)

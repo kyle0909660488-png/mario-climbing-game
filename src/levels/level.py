@@ -78,6 +78,20 @@ class Level:
         self.enemies_defeated = 0
         self.traps_triggered = 0
 
+        # 自動調整敵人巡邏範圍，避免掉下平台
+        self._adjust_enemies_patrol_ranges()
+
+    def _adjust_enemies_patrol_ranges(self):
+        """
+        調整所有敵人的巡邏範圍\n
+        \n
+        在關卡初始化時自動檢查每個敵人的巡邏範圍是否安全，\n
+        如果可能導致敵人掉下平台就自動縮小範圍\n
+        """
+        for enemy in self.enemies:
+            if hasattr(enemy, "adjust_patrol_range_for_platforms"):
+                enemy.adjust_patrol_range_for_platforms(self.platforms)
+
     def update(self, player):
         """
         更新關卡狀態\n
@@ -93,7 +107,18 @@ class Level:
         """
         # 更新所有敵人
         for enemy in self.enemies[:]:  # 使用副本避免修改列表時出錯
-            enemy.update(player)
+            # 建立包含移動平台的完整平台清單
+            all_platforms = self.platforms.copy()
+
+            # 把移動平台也加入平台清單，讓敵人可以站在上面
+            from src.traps.moving_platform import MovingPlatform
+
+            for trap in self.traps:
+                if isinstance(trap, MovingPlatform):
+                    all_platforms.append(trap)
+
+            # 更新敵人，傳入平台資料用於碰撞檢測
+            enemy.update(player, all_platforms)
 
             # 檢查玩家是否與敵人發生接觸（用來激活敵人追蹤）
             if not enemy.has_been_touched:
