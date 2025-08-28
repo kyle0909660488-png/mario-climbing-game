@@ -105,6 +105,9 @@ class BaseEnemy(ABC):
         self.animation_frame = 0
         self.sprite_flip = False
 
+        # 追蹤激活狀態 - 只有被玩家碰到後才會開始追蹤
+        self.has_been_touched = False
+
     @abstractmethod
     def update_ai(self, player):
         """
@@ -330,14 +333,19 @@ class BaseEnemy(ABC):
         """
         檢查是否能看見玩家\n
         \n
+        只有在被玩家碰到過後才會開始追蹤玩家\n
         簡化的視線檢查，實際遊戲可能需要射線檢測\n
         \n
         參數:\n
         player: 玩家物件\n
         \n
         回傳:\n
-        bool: 是否在視線範圍內\n
+        bool: 是否在視線範圍內且已被激活追蹤\n
         """
+        # 如果還沒有被玩家碰到過，就看不見玩家（不會追蹤）
+        if not self.has_been_touched:
+            return False
+
         distance = self.get_distance_to_player(player)
         return distance <= self.detection_range
 
@@ -439,6 +447,9 @@ class BaseEnemy(ABC):
         self.burn_timer = 0
         self.burn_damage_timer = 0
         self.burn_particle_timer = 0
+
+        # 重置追蹤激活狀態
+        self.has_been_touched = False
 
     def is_in_screen_bounds(self, screen: pygame.Surface, camera_y: float) -> bool:
         """

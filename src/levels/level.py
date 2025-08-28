@@ -95,6 +95,14 @@ class Level:
         for enemy in self.enemies[:]:  # 使用副本避免修改列表時出錯
             enemy.update(player)
 
+            # 檢查玩家是否與敵人發生接觸（用來激活敵人追蹤）
+            if not enemy.has_been_touched:
+                player_rect = player.get_collision_rect()
+                enemy_rect = enemy.get_collision_rect()
+                if player_rect.colliderect(enemy_rect):
+                    # 玩家碰到敵人，激活敵人的追蹤模式
+                    enemy.has_been_touched = True
+
             # 檢查敵人是否被玩家攻擊擊敗（只在攻擊剛開始時判定，避免重複傷害）
             if player.attack_just_started and self._check_player_attack_hit(
                 player, enemy
