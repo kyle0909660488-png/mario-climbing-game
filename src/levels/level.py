@@ -78,6 +78,13 @@ class Level:
         self.enemies_defeated = 0
         self.traps_triggered = 0
 
+        # 保存原始敵人配置用於重置
+        # 儲存每個敵人的類型和初始參數，用於重新建立敵人物件
+        self._original_enemy_configs = []
+        for enemy in enemies:
+            enemy_config = self._get_enemy_config(enemy)
+            self._original_enemy_configs.append(enemy_config)
+
         # 自動調整敵人巡邏範圍，避免掉下平台
         self._adjust_enemies_patrol_ranges()
 
@@ -396,6 +403,120 @@ class Level:
         # 重置所有敵人狀態
         for enemy in self.enemies:
             enemy.reset()
+
+        # 重置所有陷阱狀態
+        for trap in self.traps:
+            trap.reset()
+
+    def _get_enemy_config(self, enemy) -> dict:
+        """
+        取得敵人的配置資料\n
+        \n
+        擷取敵人的類型和初始參數，用於重新建立敵人物件\n
+        \n
+        參數:\n
+        enemy: 敵人物件\n
+        \n
+        回傳:\n
+        dict: 包含敵人類型和初始參數的字典\n
+        """
+        # 儲存敵人的類型和基本參數
+        config = {
+            "type": type(enemy).__name__,
+            "module": type(enemy).__module__,
+            "x": enemy.start_x if hasattr(enemy, "start_x") else enemy.x,
+            "y": enemy.start_y if hasattr(enemy, "start_y") else enemy.y,
+            "health": enemy.max_health,
+            "attack_damage": enemy.attack_damage,
+            "speed": enemy.speed,
+        }
+
+        # 如果是基礎敵人，還要儲存巡邏範圍
+        if hasattr(enemy, "patrol_range"):
+            config["patrol_range"] = enemy.patrol_range
+
+        # 如果是 Boss，儲存 Boss 類型
+        if hasattr(enemy, "boss_type"):
+            config["boss_type"] = enemy.boss_type
+
+        return config
+
+    def _recreate_enemy_from_config(self, config: dict):
+        """
+        從配置資料重新建立敵人物件\n
+        \n
+        根據儲存的配置參數重新建立敵人物件\n
+        \n
+        參數:\n
+        config (dict): 敵人的配置資料\n
+        \n
+        回傳:\n
+        敵人物件\n
+        """
+        try:
+            # 動態導入敵人類別
+            module_path = config["module"]
+            class_name = config["type"]
+
+            # 導入模組
+            import importlib
+
+            module = importlib.import_module(module_path)
+            enemy_class = getattr(module, class_name)
+
+            # 根據敵人類型建立物件
+            if class_name == "Boss":
+                # Boss 需要特殊的初始化參數
+                enemy = enemy_class(
+                    config["x"], config["y"], boss_type=config.get("boss_type", "basic")
+                )
+            elif class_name == "BasicEnemy":
+                # 基礎敵人需要巡邏範圍參數
+                enemy = enemy_class(
+                    config["x"],
+                    config["y"],
+                    patrol_range=config.get("patrol_range", 100),
+                )
+            else:
+                # 其他敵人類型使用標準初始化
+                enemy = enemy_class(
+                    config["x"],
+                    config["y"],
+                    health=config["health"],
+                    attack_damage=config["attack_damage"],
+                    speed=config["speed"],
+                )
+
+            return enemy
+
+        except Exception as e:
+            print(f"重新建立敵人時發生錯誤：{e}")
+            # 如果重建失敗，回退到建立基本敵人
+            from src.enemies.basic_enemy import BasicEnemy
+
+            return BasicEnemy(
+                config["x"], config["y"], patrol_range=config.get("patrol_range", 100)
+            )
+
+    def reset(self):
+        """
+        重置關卡狀態\n
+        \n
+        將關卡恢復到初始狀態，重新建立所有敵人物件\n
+        """
+        self.is_completed = False
+        self.completion_time = 0
+        self.enemies_defeated = 0
+        self.traps_triggered = 0
+
+        # 重新建立所有敵人物件（這樣被殺死的敵人也會復活）
+        self.enemies = []
+        for enemy_config in self._original_enemy_configs:
+            new_enemy = self._recreate_enemy_from_config(enemy_config)
+            self.enemies.append(new_enemy)
+
+        # 重新調整敵人巡邏範圍
+        self._adjust_enemies_patrol_ranges()
 
         # 重置所有陷阱狀態
         for trap in self.traps:

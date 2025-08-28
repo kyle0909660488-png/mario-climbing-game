@@ -288,6 +288,35 @@ class GameUI:
                 screen, stat_name, stat_value, x + 20, stats_y + i * 35, width - 40
             )
 
+    def _get_stat_comparison_color(self, stat_name: str, stat_value: int):
+        """
+        根據三隻角色的數值比較，決定數值條的顏色\n
+        \n
+        參數:\n
+        stat_name (str): 能力名稱（血量、速度、跳躍、攻擊）\n
+        stat_value (int): 該角色的能力數值\n
+        \n
+        回傳:\n
+        tuple: RGB 顏色值，最大值為綠色，最小值為紅色，其他為黃色\n
+        """
+        # 收集所有角色的該項數值
+        stat_values = [
+            character["stats"][stat_name] for character in self.character_info
+        ]
+
+        max_value = max(stat_values)
+        min_value = min(stat_values)
+
+        # 如果該數值是最大值，顯示綠色
+        if stat_value == max_value:
+            return (50, 255, 50)  # 綠色
+        # 如果該數值是最小值，顯示紅色
+        elif stat_value == min_value:
+            return (255, 50, 50)  # 紅色
+        # 其他數值顯示黃色
+        else:
+            return (255, 255, 50)  # 黃色
+
     def _draw_stat_bar(
         self,
         screen: pygame.Surface,
@@ -300,7 +329,10 @@ class GameUI:
         """
         繪製能力數值條\n
         \n
-        以進度條的形式顯示角色能力\n
+        以進度條的形式顯示角色能力，根據三隻角色的數值比較使用不同顏色：\n
+        - 最大值：綠色\n
+        - 最小值：紅色\n
+        - 中間值：黃色\n
         """
         # 能力名稱
         name_text = self.fonts["tiny"].render(
@@ -320,22 +352,15 @@ class GameUI:
         fill_ratio = min(stat_value / max_value, 1.0)
         fill_width = int(width * fill_ratio)
 
-        # 根據數值高低選擇顏色
-        if fill_ratio > 0.8:
-            fill_color = self.ui_colors["success"]
-        elif fill_ratio > 0.5:
-            fill_color = self.ui_colors["warning"]
-        else:
-            fill_color = self.ui_colors["danger"]
+        # 根據三隻角色的數值比較選擇顏色
+        fill_color = self._get_stat_comparison_color(stat_name, stat_value)
 
         if fill_width > 0:
             fill_rect = pygame.Rect(x, y, fill_width, bar_height)
             pygame.draw.rect(screen, fill_color, fill_rect)
 
-        # 數值文字
-        value_text = self.fonts["tiny"].render(
-            str(stat_value), True, self.ui_colors["primary"]
-        )
+        # 數值文字，使用相同的比較顏色
+        value_text = self.fonts["tiny"].render(str(stat_value), True, fill_color)
         value_rect = value_text.get_rect(right=x + width, centery=y + bar_height // 2)
         screen.blit(value_text, value_rect)
 
