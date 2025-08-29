@@ -41,6 +41,7 @@ class LevelManager:
         self.current_level_number = 1
         self.levels = []
         self.max_level = 6  # 更新為 6 個關卡，新增第六關 Boss 戰
+        self.difficulty = "easy"  # 預設難度為簡單模式
 
         # 建立所有關卡
         self._create_all_levels()
@@ -571,4 +572,32 @@ class LevelManager:
             "progress": f"{self.current_level_number}/{self.max_level}",
             "is_final": self.is_final_level(),
             "remaining_enemies": self.get_remaining_enemy_count(),  # 新增剩餘敵人數
+            "difficulty": self.difficulty,  # 新增難度資訊
         }
+
+    def set_difficulty(self, difficulty: str):
+        """
+        設定遊戲難度\n
+        \n
+        參數:\n
+        difficulty (str): 難度設定，"easy" 或 "hard"\n
+        """
+        self.difficulty = difficulty
+
+    def get_difficulty(self) -> str:
+        """
+        取得當前遊戲難度\n
+        \n
+        回傳:\n
+        str: 當前難度設定\n
+        """
+        return self.difficulty
+
+    def should_require_all_enemies_defeated(self) -> bool:
+        """
+        根據難度判斷是否需要擊敗所有敵人才能過關\n
+        \n
+        回傳:\n
+        bool: 是否需要擊敗所有敵人\n
+        """
+        return self.difficulty == "hard"

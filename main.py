@@ -84,6 +84,7 @@ class MarioClimbingGame:
 
         # 選角相關變數
         self.selected_character_index = 0  # 目前選中的角色編號
+        self.selected_difficulty = "easy"  # 目前選中的難度（"easy" 或 "hard"）
 
         # 相機系統變數
         self.camera_y = 0  # 當前相機 Y 位置
@@ -187,10 +188,16 @@ class MarioClimbingGame:
                             self.selected_character_index = (
                                 self.selected_character_index + 1
                             ) % 3
+                        elif event.key == pygame.K_UP:
+                            # 切換難度
+                            self.selected_difficulty = "hard" if self.selected_difficulty == "easy" else "easy"
+                        elif event.key == pygame.K_DOWN:
+                            # 切換難度
+                            self.selected_difficulty = "hard" if self.selected_difficulty == "easy" else "easy"
                         elif event.key == pygame.K_RETURN:
-                            # 按 Enter 開始遊戲，建立選定的角色
+                            # 按 Enter 開始遊戲，建立選定的角色和難度
                             self.start_game_with_character(
-                                self.selected_character_index
+                                self.selected_character_index, self.selected_difficulty
                             )
 
                     # 暫停狀態的按鍵處理
@@ -201,21 +208,26 @@ class MarioClimbingGame:
                     # 勝利畫面的按鍵處理
                     elif self.game_state == "victory":
                         if event.key == pygame.K_SPACE:
-                            self.restart_game()  # 重新開始遊戲
+                            self.running = False  # 關閉遊戲
                         elif event.key == pygame.K_ESCAPE:
                             self.game_state = "menu"  # 回到主選單
 
-    def start_game_with_character(self, character_type: int):
+    def start_game_with_character(self, character_type: int, difficulty: str):
         """
-        使用選定的角色開始遊戲\n
+        使用選定的角色和難度開始遊戲\n
         \n
         根據角色類型建立對應的玩家物件，每種角色有不同的基礎能力：\n
         0: 平衡型角色（標準速度和跳躍）\n
         1: 跳躍型角色（二段跳能力）\n
         2: 坦克型角色（血量多，移動慢）\n
         \n
+        根據難度設定遊戲過關條件：\n
+        easy: 簡單模式，不需擊敗所有敵人即可過關\n
+        hard: 困難模式，必須擊敗所有敵人才能過關\n
+        \n
         參數:\n
         character_type (int): 角色類型編號，範圍 0-2\n
+        difficulty (str): 難度模式，"easy" 或 "hard"\n
         """
         # 建立選定的角色
         start_x = SCREEN_WIDTH // 2
@@ -230,8 +242,9 @@ class MarioClimbingGame:
         self.player.set_fireball_manager(self.fireball_manager)
         self.player.set_iceball_manager(self.iceball_manager)
 
-        # 重置關卡管理器到第一關
+        # 重置關卡管理器到第一關，並設定難度
         self.level_manager.reset_to_first_level()
+        self.level_manager.set_difficulty(difficulty)
 
         # 清空裝備，重新開始
         self.equipment_manager.reset_equipment()
@@ -445,35 +458,43 @@ class MarioClimbingGame:
         """
         檢查關卡切換條件\n
         \n
-        檢查玩家是否到達關卡目標位置，同時確保所有敵人都被擊敗，\n
-        符合條件就切換到下一關\n
+        根據難度模式決定過關條件：\n
+        - 簡單模式：到達關卡頂部即可過關\n
+        - 困難模式：必須擊敗所有敵人且到達關卡頂部才可過關\n
         """
         current_level = self.level_manager.get_current_level()
 
         # 首先檢查玩家是否到達關卡頂部
         if self.player.y < current_level.level_completion_height:
-            # 檢查過關條件：必須擊敗所有敵人才能進入下一關
-            if not self.level_manager.are_all_enemies_defeated():
-                # 如果還有敵人存活，阻止玩家前進並給予提示
-                remaining_enemies = self.level_manager.get_remaining_enemy_count()
+            # 根據難度模式檢查過關條件
+            difficulty = self.level_manager.get_difficulty()
+            
+            if difficulty == "hard":
+                # 困難模式：必須擊敗所有敵人才能進入下一關
+                if not self.level_manager.are_all_enemies_defeated():
+                    # 如果還有敵人存活，阻止玩家前進並給予提示
+                    remaining_enemies = self.level_manager.get_remaining_enemy_count()
 
-                # 將玩家推回到安全位置，避免卡在關卡邊界
-                self.player.y = current_level.level_completion_height + 50
+                    # 將玩家推回到安全位置，避免卡在關卡邊界
+                    self.player.y = current_level.level_completion_height + 50
 
-                # 提示玩家還需要擊敗敵人（每秒最多顯示一次，避免洗版）
-                if not hasattr(self, "_last_enemy_warning_time"):
-                    self._last_enemy_warning_time = 0
+                    # 提示玩家還需要擊敗敵人（每秒最多顯示一次，避免洗版）
+                    if not hasattr(self, "_last_enemy_warning_time"):
+                        self._last_enemy_warning_time = 0
 
-                import time
+                    import time
 
-                current_time = time.time()
-                if current_time - self._last_enemy_warning_time > 2:  # 2秒間隔
-                    print(
-                        f"還有 {remaining_enemies} 個敵人存活！必須擊敗所有敵人才能進入下一關"
-                    )
-                    self._last_enemy_warning_time = current_time
+                    current_time = time.time()
+                    if current_time - self._last_enemy_warning_time > 2:  # 2秒間隔
+                        print(
+                            f"困難模式：還有 {remaining_enemies} 個敵人存活！必須擊敗所有敵人才能進入下一關"
+                        )
+                        self._last_enemy_warning_time = current_time
 
-                return
+                    return
+            
+            # 簡單模式：不需要檢查敵人，直接可以過關
+            # 困難模式：所有敵人已被擊敗，可以過關
 
             # 檢查是否為最終關卡（第六關）
             if self.level_manager.current_level_number == 6:
@@ -486,7 +507,7 @@ class MarioClimbingGame:
                     self.player.y = current_level.level_completion_height + 50
                     return
 
-            # 所有敵人都被擊敗且到達目標高度，可以進入下一關
+            # 可以進入下一關
             success = self.level_manager.advance_to_next_level()
             if success:
                 # 重新定位玩家到新關卡的起始位置
@@ -497,9 +518,10 @@ class MarioClimbingGame:
                 # 立即更新相機位置到新位置，避免切換關卡時的跳躍
                 self.camera_y = self.player.y - SCREEN_HEIGHT // 2
 
-                # 顯示通關訊息
+                # 根據難度顯示通關訊息
+                difficulty_text = "簡單" if difficulty == "easy" else "困難"
                 print(
-                    f"成功通過第 {self.level_manager.current_level_number - 1} 關！進入第 {self.level_manager.current_level_number} 關"
+                    f"【{difficulty_text}模式】成功通過第 {self.level_manager.current_level_number - 1} 關！進入第 {self.level_manager.current_level_number} 關"
                 )
 
             # 重置警告時間，為新關卡做準備
@@ -553,7 +575,7 @@ class MarioClimbingGame:
 
         if self.game_state == "menu":
             # 繪製角色選擇選單
-            self.ui.draw_character_selection(self.screen, self.selected_character_index)
+            self.ui.draw_character_selection(self.screen, self.selected_character_index, self.selected_difficulty)
 
         elif self.game_state == "playing" and self.player:
             # 繪製遊戲中的所有物件

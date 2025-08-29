@@ -84,6 +84,22 @@ class GameUI:
         self.animation_timer = 0
         self.pulse_effect = 0
 
+        # 難度選項資訊
+        self.difficulty_info = {
+            "easy": {
+                "name": "簡單模式",
+                "description": "到達關卡頂部即可過關",
+                "color": (50, 255, 50),  # 綠色
+                "details": ["無需擊敗所有敵人", "適合新手玩家", "快速通關體驗"]
+            },
+            "hard": {
+                "name": "困難模式", 
+                "description": "必須擊敗所有敵人才能過關",
+                "color": (255, 50, 50),  # 紅色
+                "details": ["必須擊敗所有敵人", "完整戰鬥體驗", "挑戰性更高"]
+            }
+        }
+
     def _initialize_chinese_fonts(self):
         """
         初始化支援繁體中文的字型系統\n
@@ -165,15 +181,16 @@ class GameUI:
 
         self.pulse_effect = 0.8 + 0.2 * math.sin(self.animation_timer * 0.1)
 
-    def draw_character_selection(self, screen: pygame.Surface, selected_index: int):
+    def draw_character_selection(self, screen: pygame.Surface, selected_index: int, selected_difficulty: str):
         """
         繪製角色選擇選單\n
         \n
-        顯示可選角色和其能力資訊\n
+        顯示可選角色和難度選項\n
         \n
         參數:\n
         screen (pygame.Surface): 螢幕表面\n
         selected_index (int): 目前選中的角色索引\n
+        selected_difficulty (str): 目前選中的難度\n
         """
         self.update_animations()
 
@@ -187,20 +204,23 @@ class GameUI:
         title_text = self.fonts["title"].render(
             "選擇你的角色", True, self.ui_colors["accent"]
         )
-        title_rect = title_text.get_rect(center=(self.screen_width // 2, 80))
+        title_rect = title_text.get_rect(center=(self.screen_width // 2, 60))
         screen.blit(title_text, title_rect)
 
         # 操作提示
         hint_text = self.fonts["small"].render(
-            "使用 ← → 選擇角色，按 Enter 開始遊戲", True, self.ui_colors["secondary"]
+            "← → 選擇角色，↑ ↓ 選擇難度，按 Enter 開始遊戲", True, self.ui_colors["secondary"]
         )
         hint_rect = hint_text.get_rect(
-            center=(self.screen_width // 2, self.screen_height - 50)
+            center=(self.screen_width // 2, self.screen_height - 30)
         )
         screen.blit(hint_text, hint_rect)
 
         # 繪製角色選項
         self._draw_character_options(screen, selected_index)
+        
+        # 繪製難度選擇
+        self._draw_difficulty_selection(screen, selected_difficulty)
 
     def _draw_character_options(self, screen: pygame.Surface, selected_index: int):
         """
@@ -208,16 +228,16 @@ class GameUI:
         \n
         顯示每個角色的詳細資訊\n
         """
-        # 計算每個角色卡片的位置和大小
-        card_width = 250
-        card_height = 350
-        spacing = 30
+        # 計算每個角色卡片的位置和大小（稍微調整位置為難度選擇留空間）
+        card_width = 280  # 增加卡片寬度避免文字超出邊界
+        card_height = 340  # 增加卡片高度容納更多內容
+        spacing = 25  # 減少間距適應更寬的卡片
         total_width = (
             len(self.character_info) * card_width
             + (len(self.character_info) - 1) * spacing
         )
         start_x = (self.screen_width - total_width) // 2
-        start_y = 150
+        start_y = 120  # 向下移動一點為難度選擇留空間
 
         for i, character in enumerate(self.character_info):
             card_x = start_x + i * (card_width + spacing)
@@ -363,6 +383,110 @@ class GameUI:
         value_text = self.fonts["tiny"].render(str(stat_value), True, fill_color)
         value_rect = value_text.get_rect(right=x + width, centery=y + bar_height // 2)
         screen.blit(value_text, value_rect)
+
+    def _draw_difficulty_selection(self, screen: pygame.Surface, selected_difficulty: str):
+        """
+        繪製難度選擇區域\n
+        \n
+        在角色選擇下方顯示難度選項\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 螢幕表面\n
+        selected_difficulty (str): 目前選中的難度\n
+        """
+        # 難度選擇區域位置（調整到更下面的位置）
+        section_y = 500  # 向下移動避免重疊
+        section_height = 200
+        
+        # 繪製難度選擇標題
+        difficulty_title = self.fonts["large"].render(
+            "選擇遊戲難度", True, self.ui_colors["accent"]
+        )
+        title_rect = difficulty_title.get_rect(center=(self.screen_width // 2, section_y))
+        screen.blit(difficulty_title, title_rect)
+
+        # 繪製兩個難度選項（增加寬度和高度避免文字擠壓）
+        option_width = 320  # 增加寬度
+        option_height = 140  # 增加高度
+        spacing = 40  # 減少間距
+        total_width = 2 * option_width + spacing
+        start_x = (self.screen_width - total_width) // 2
+        option_y = section_y + 50
+
+        # 簡單模式
+        easy_x = start_x
+        self._draw_difficulty_option(
+            screen, "easy", easy_x, option_y, option_width, option_height,
+            selected_difficulty == "easy"
+        )
+
+        # 困難模式
+        hard_x = start_x + option_width + spacing
+        self._draw_difficulty_option(
+            screen, "hard", hard_x, option_y, option_width, option_height,
+            selected_difficulty == "hard"
+        )
+
+    def _draw_difficulty_option(
+        self, screen: pygame.Surface, difficulty: str, x: int, y: int, 
+        width: int, height: int, is_selected: bool
+    ):
+        """
+        繪製單個難度選項卡\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 螢幕表面\n
+        difficulty (str): 難度類型 ("easy" 或 "hard")\n
+        x, y (int): 選項卡位置\n
+        width, height (int): 選項卡大小\n
+        is_selected (bool): 是否被選中\n
+        """
+        difficulty_data = self.difficulty_info[difficulty]
+        
+        # 選項卡背景顏色
+        if is_selected:
+            bg_color = (60, 60, 60)
+            border_color = difficulty_data["color"]
+            border_width = int(4 * self.pulse_effect)
+        else:
+            bg_color = (40, 40, 40)
+            border_color = (80, 80, 80)
+            border_width = 2
+
+        # 繪製選項卡背景
+        option_rect = pygame.Rect(x, y, width, height)
+        pygame.draw.rect(screen, bg_color, option_rect)
+        pygame.draw.rect(screen, border_color, option_rect, border_width)
+
+        # 難度名稱
+        name_text = self.fonts["medium"].render(
+            difficulty_data["name"], True, difficulty_data["color"]
+        )
+        name_rect = name_text.get_rect(center=(x + width // 2, y + 25))
+        screen.blit(name_text, name_rect)
+
+        # 難度描述 - 使用更小的字體避免超出邊界
+        desc_text = self.fonts["tiny"].render(
+            difficulty_data["description"], True, self.ui_colors["secondary"]
+        )
+        desc_rect = desc_text.get_rect(center=(x + width // 2, y + 55))
+        screen.blit(desc_text, desc_rect)
+
+        # 詳細說明 - 調整位置和字體大小
+        details_start_y = y + 80
+        for i, detail in enumerate(difficulty_data["details"]):
+            # 使用 tiny 字體並確保文字適合框內
+            detail_text = self.fonts["tiny"].render(
+                f"• {detail}", True, self.ui_colors["primary"]
+            )
+            # 確保文字不超出選項卡寬度
+            detail_rect = detail_text.get_rect(
+                centerx=x + width // 2, y=details_start_y + i * 16
+            )
+            # 如果文字太寬，需要左對齊並在框內顯示
+            if detail_rect.width > width - 20:
+                detail_rect.left = x + 10
+            screen.blit(detail_text, detail_rect)
 
     def draw_game_ui(self, screen: pygame.Surface, player, level_manager):
         """
@@ -554,12 +678,13 @@ class GameUI:
         """
         繪製關卡資訊\n
         \n
-        在螢幕右上角顯示當前關卡和剩餘敵人數量\n
+        在螢幕右上角顯示當前關卡、剩餘敵人數量和難度\n
         """
         # 取得關卡資訊
         level_info = level_manager.get_level_info()
         level_number = level_info["number"]
         remaining_enemies = level_info["remaining_enemies"]
+        difficulty = level_info.get("difficulty", "easy")
 
         # 關卡編號
         level_text = self.fonts["medium"].render(
@@ -567,6 +692,17 @@ class GameUI:
         )
         level_rect = level_text.get_rect(right=self.screen_width - 20, top=20)
         screen.blit(level_text, level_rect)
+
+        # 難度顯示 - 在關卡編號旁邊
+        difficulty_name = "簡單" if difficulty == "easy" else "困難"
+        difficulty_color = (50, 255, 50) if difficulty == "easy" else (255, 50, 50)
+        difficulty_text = self.fonts["small"].render(
+            f"[{difficulty_name}]", True, difficulty_color
+        )
+        difficulty_rect = difficulty_text.get_rect(
+            right=level_rect.left - 10, centery=level_rect.centery
+        )
+        screen.blit(difficulty_text, difficulty_rect)
 
         # 剩餘敵人數量 - 顯示在關卡編號下方
         enemy_color = (
@@ -580,17 +716,84 @@ class GameUI:
         enemy_rect = enemy_text.get_rect(
             right=self.screen_width - 20, top=level_rect.bottom + 5
         )
+        
+        # 為剩餘敵人數量文字添加背景色，提高可讀性
+        enemy_bg_padding = 4
+        enemy_bg_rect = pygame.Rect(
+            enemy_rect.left - enemy_bg_padding,
+            enemy_rect.top - enemy_bg_padding,
+            enemy_rect.width + enemy_bg_padding * 2,
+            enemy_rect.height + enemy_bg_padding * 2
+        )
+        # 使用半透明黑色背景
+        enemy_bg_surface = pygame.Surface((enemy_bg_rect.width, enemy_bg_rect.height), pygame.SRCALPHA)
+        enemy_bg_surface.fill((0, 0, 0, 150))  # 半透明黑色
+        screen.blit(enemy_bg_surface, (enemy_bg_rect.x, enemy_bg_rect.y))
+        
         screen.blit(enemy_text, enemy_rect)
 
-        # 如果沒有剩餘敵人，顯示可以過關的提示
-        if remaining_enemies == 0:
-            clear_text = self.fonts["tiny"].render(
-                "可以前往關卡頂部過關！", True, self.ui_colors["success"]
-            )
-            clear_rect = clear_text.get_rect(
-                right=self.screen_width - 20, top=enemy_rect.bottom + 3
-            )
-            screen.blit(clear_text, clear_rect)
+        # 根據難度和關卡顯示過關條件提示
+        condition_y = enemy_rect.bottom + 3
+        
+        # 針對第六關（Boss戰）特別處理文字顯示
+        if level_number == 6:
+            if difficulty == "easy":
+                if remaining_enemies == 0:
+                    clear_text = self.fonts["tiny"].render(
+                        "可以前往關卡頂部過關！", True, self.ui_colors["success"]
+                    )
+                else:
+                    clear_text = self.fonts["tiny"].render(
+                        "擊敗Boss通關", True, self.ui_colors["info"]
+                    )
+            else:  # hard mode
+                if remaining_enemies == 0:
+                    clear_text = self.fonts["tiny"].render(
+                        "可以前往關卡頂部過關！", True, self.ui_colors["success"]
+                    )
+                else:
+                    clear_text = self.fonts["tiny"].render(
+                        "擊敗Boss和小怪通關", True, self.ui_colors["warning"]
+                    )
+        else:
+            # 其他關卡使用原本的文字
+            if difficulty == "easy":
+                if remaining_enemies == 0:
+                    clear_text = self.fonts["tiny"].render(
+                        "可以前往關卡頂部過關！", True, self.ui_colors["success"]
+                    )
+                else:
+                    clear_text = self.fonts["tiny"].render(
+                        "前往關卡頂部即可過關", True, self.ui_colors["info"]
+                    )
+            else:  # hard mode
+                if remaining_enemies == 0:
+                    clear_text = self.fonts["tiny"].render(
+                        "可以前往關卡頂部過關！", True, self.ui_colors["success"]
+                    )
+                else:
+                    clear_text = self.fonts["tiny"].render(
+                        "需擊敗所有敵人才能過關", True, self.ui_colors["warning"]
+                    )
+
+        clear_rect = clear_text.get_rect(
+            right=self.screen_width - 20, top=condition_y
+        )
+        
+        # 為過關條件文字添加背景色，提高可讀性
+        bg_padding = 4
+        bg_rect = pygame.Rect(
+            clear_rect.left - bg_padding,
+            clear_rect.top - bg_padding,
+            clear_rect.width + bg_padding * 2,
+            clear_rect.height + bg_padding * 2
+        )
+        # 使用半透明黑色背景
+        bg_surface = pygame.Surface((bg_rect.width, bg_rect.height), pygame.SRCALPHA)
+        bg_surface.fill((0, 0, 0, 150))  # 半透明黑色
+        screen.blit(bg_surface, (bg_rect.x, bg_rect.y))
+        
+        screen.blit(clear_text, clear_rect)
 
     def _draw_controls_hint(self, screen: pygame.Surface):
         """
@@ -763,7 +966,7 @@ class GameUI:
 
         # 操作提示
         restart_text = self.fonts["small"].render(
-            "按 SPACE 重新開始遊戲", True, self.ui_colors["secondary"]
+            "按 SPACE 關閉遊戲", True, self.ui_colors["secondary"]
         )
         restart_rect = restart_text.get_rect(
             center=(self.screen_width // 2, self.screen_height // 2 + 30)
@@ -817,13 +1020,27 @@ class GameUI:
         ]
 
         for i, potion in enumerate(potion_info):
-            y_pos = start_y + i * 18  # 縮小行間距避免佔用太多空間
+            y_pos = start_y + i * 26  # 進一步增加行間距確保背景框不重疊
             count = player.get_potion_count(potion["type"])
 
             # 顯示藥水名稱和數量
             text = f"[{potion['key']}] {potion['name']}: {count}"
             rendered_text = self.fonts["tiny"].render(text, True, potion["color"])
             text_rect = rendered_text.get_rect(left=start_x, y=y_pos)
+            
+            # 為藥水文字添加背景色，提高可讀性
+            potion_bg_padding = 3  # 稍微增加內邊距讓背景更明顯
+            potion_bg_rect = pygame.Rect(
+                text_rect.left - potion_bg_padding,
+                text_rect.top - potion_bg_padding,
+                text_rect.width + potion_bg_padding * 2,
+                text_rect.height + potion_bg_padding * 2
+            )
+            # 使用半透明黑色背景
+            potion_bg_surface = pygame.Surface((potion_bg_rect.width, potion_bg_rect.height), pygame.SRCALPHA)
+            potion_bg_surface.fill((0, 0, 0, 120))  # 稍微透明一點，避免遮擋過多
+            screen.blit(potion_bg_surface, (potion_bg_rect.x, potion_bg_rect.y))
+            
             screen.blit(rendered_text, text_rect)
 
             # 在數量為0時顯示灰色覆蓋
