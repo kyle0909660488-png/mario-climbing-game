@@ -439,8 +439,8 @@ class LevelManager:
 
         # Boss 戰和雜兵 - 地面決戰配置
         enemies = [
-            # 終極 Boss - 在地面與玩家正面對決
-            Boss(200, 720, boss_type="ultimate_lord"),  # 地面左側位置
+            # 終極 Boss - 在地面與玩家正面對決（修正Y座標讓Boss正確站在平台上）
+            Boss(200, 670, boss_type="ultimate_lord"),  # 地面左側位置 (750-80=670)
             # Boss 護衛雜兵 - 增加戰鬥複雜度，避開玩家出生點 (1000, 700)
             BasicEnemy(600, 720, patrol_range=100),  # 地面中央護衛，巡邏範圍 500-700
             BasicEnemy(400, 720, patrol_range=80),  # 地面中左護衛，巡邏範圍 320-480

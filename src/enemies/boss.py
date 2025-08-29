@@ -130,6 +130,13 @@ class Boss(BaseEnemy):
         player: 玩家物件\n
         platforms (list): 平台列表，用於碰撞檢測\n
         """
+        if self.is_dead:
+            self._update_death_animation()
+            return
+
+        # 更新基本屬性（必須先呼叫，包含物理更新）
+        self._update_base_properties()
+
         # 更新技能冷卻時間
         self._update_skill_cooldowns()
 
@@ -137,15 +144,78 @@ class Boss(BaseEnemy):
         self._check_phase_transition()
 
         # 更新 AI 狀態
-        if not self.is_casting_skill:
+        if not self.is_casting_skill and not self.is_stunned:
             self._update_ai_logic(player)
 
         # 處理技能施放
         if self.is_casting_skill:
             self._update_skill_casting(player)
 
-        # 更新物理狀態（使用基類的 update 方法）
-        super().update(player, platforms)
+        # 應用物理效果（重力、碰撞檢測等）
+        self._apply_physics(platforms)
+
+        # 除錯資訊：印出Boss座標和狀態
+        if hasattr(self, 'debug_timer'):
+            self.debug_timer += 1
+        else:
+            self.debug_timer = 0
+            
+        # 每秒印出一次除錯資訊（60幀 = 1秒）
+        if self.debug_timer % 60 == 0:
+            ground_status = "在地面上" if self.is_on_ground else "在空中"
+            platform_status = f"站在移動平台: {self.standing_on_moving_platform is not None}" if hasattr(self, 'standing_on_moving_platform') else "無移動平台資訊"
+            print(f"[Boss除錯] 位置: ({self.x:.1f}, {self.y:.1f}), 速度: ({self.velocity_x:.1f}, {self.velocity_y:.1f}), 狀態: {ground_status}, {platform_status}")
+            
+            # 檢查Boss腳下是否有平台
+            if platforms:
+                boss_bottom = self.y + self.height
+                boss_center_x = self.x + self.width // 2
+                nearby_platforms = []
+                for platform in platforms:
+                    if (platform.x <= boss_center_x <= platform.x + platform.width and 
+                        abs(boss_bottom - platform.y) < 10):
+                        nearby_platforms.append(f"平台({platform.x}, {platform.y}, {platform.width}x{platform.height})")
+                
+                if nearby_platforms:
+                    print(f"[Boss除錯] 腳下平台: {', '.join(nearby_platforms)}")
+                else:
+                    print(f"[Boss除錯] 腳下無平台，Boss底部Y: {boss_bottom:.1f}")
+
+        # 更新動畫
+        self._update_animation()
+
+        # 除錯資訊：印出Boss座標和狀態
+        if hasattr(self, '_debug_timer'):
+            self._debug_timer += 1
+        else:
+            self._debug_timer = 0
+            
+        # 每60幀（約1秒）印出一次Boss狀態
+        if self._debug_timer % 60 == 0:
+            print(f"Boss座標: ({self.x:.1f}, {self.y:.1f}), 是否在地面: {self.is_on_ground}, 垂直速度: {self.velocity_y:.2f}")
+            
+            # 檢查Boss是否在平台範圍內
+            if platforms:
+                boss_rect = self.get_collision_rect()
+                on_platform = False
+                for i, platform in enumerate(platforms):
+                    platform_rect = pygame.Rect(platform.x, platform.y, platform.width, platform.height)
+                    # 檢查Boss腳部是否接觸平台頂部
+                    boss_bottom = boss_rect.bottom
+                    platform_top = platform_rect.top
+                    if (boss_rect.centerx >= platform_rect.left and 
+                        boss_rect.centerx <= platform_rect.right and 
+                        abs(boss_bottom - platform_top) <= 10):
+                        print(f"  -> Boss站在平台 {i}: ({platform.x}, {platform.y}, {platform.width}x{platform.height})")
+                        on_platform = True
+                        break
+                        
+                if not on_platform:
+                    print(f"  -> Boss沒有站在任何平台上！最近的平台距離:")
+                    for i, platform in enumerate(platforms[:3]):  # 只顯示前3個平台
+                        platform_rect = pygame.Rect(platform.x, platform.y, platform.width, platform.height)
+                        distance = abs(boss_rect.centery - platform_rect.centery)
+                        print(f"    平台 {i}: 距離 {distance:.1f} 像素")
 
         # 更新小兵
         self._update_minions(player, platforms)
