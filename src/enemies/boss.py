@@ -154,34 +154,8 @@ class Boss(BaseEnemy):
         # 應用物理效果（重力、碰撞檢測等）
         self._apply_physics(platforms)
 
-        # 除錯資訊：印出Boss座標和狀態
-        if hasattr(self, 'debug_timer'):
-            self.debug_timer += 1
-        else:
-            self.debug_timer = 0
-            
-        # 每秒印出一次除錯資訊（60幀 = 1秒）
-        if self.debug_timer % 60 == 0:
-            ground_status = "在地面上" if self.is_on_ground else "在空中"
-            platform_status = f"站在移動平台: {self.standing_on_moving_platform is not None}" if hasattr(self, 'standing_on_moving_platform') else "無移動平台資訊"
-            print(f"[Boss除錯] 位置: ({self.x:.1f}, {self.y:.1f}), 速度: ({self.velocity_x:.1f}, {self.velocity_y:.1f}), 狀態: {ground_status}, {platform_status}")
-            
-            # 檢查Boss腳下是否有平台
-            if platforms:
-                boss_bottom = self.y + self.height
-                boss_center_x = self.x + self.width // 2
-                nearby_platforms = []
-                for platform in platforms:
-                    if (platform.x <= boss_center_x <= platform.x + platform.width and 
-                        abs(boss_bottom - platform.y) < 10):
-                        nearby_platforms.append(f"平台({platform.x}, {platform.y}, {platform.width}x{platform.height})")
-                
-                if nearby_platforms:
-                    print(f"[Boss除錯] 腳下平台: {', '.join(nearby_platforms)}")
-                else:
-                    print(f"[Boss除錯] 腳下無平台，Boss底部Y: {boss_bottom:.1f}")
-
         # 更新動畫
+        self._update_animation()
         self._update_animation()
 
         # 除錯資訊：印出Boss座標和狀態
@@ -705,8 +679,9 @@ class Boss(BaseEnemy):
         camera_x (int): 攝影機 x 偏移\n
         camera_y (int): 攝影機 y 偏移\n
         """
+        # 計算正確的螢幕座標（與其他遊戲物件一致）
         screen_x = self.x - camera_x
-        screen_y = self.y - camera_y
+        screen_y = self.y - camera_y + screen.get_height() // 2
 
         # 檢查是否在螢幕範圍內
         if (
@@ -783,8 +758,9 @@ class Boss(BaseEnemy):
             if hasattr(self, "area_attack_timer") and self.area_attack_timer > 0:
                 self.area_attack_timer -= 1
 
+                # 計算正確的螢幕座標
                 center_x = self.x + self.width // 2 - camera_x
-                center_y = self.y + self.height // 2 - camera_y
+                center_y = self.y + self.height // 2 - camera_y + screen.get_height() // 2
 
                 # 繪製範圍攻擊圈
                 alpha = int((self.area_attack_timer / 30) * 100)
@@ -813,9 +789,9 @@ class Boss(BaseEnemy):
             if hasattr(self, "shockwave_timer") and self.shockwave_timer > 0:
                 self.shockwave_timer -= 1
 
-                # 繪製震波（簡化為線條）
+                # 計算正確的螢幕座標
                 start_x = self.x + self.width // 2 - camera_x
-                start_y = self.y + self.height // 2 - camera_y
+                start_y = self.y + self.height // 2 - camera_y + screen.get_height() // 2
 
                 wave_length = (60 - self.shockwave_timer) * 8
                 end_x = start_x + self.shockwave_direction[0] * wave_length
@@ -974,8 +950,9 @@ class BossMinion(BaseEnemy):
         \n
         使用較小的尺寸和不同顏色區別於普通敵人\n
         """
+        # 計算正確的螢幕座標（與其他遊戲物件一致）
         screen_x = self.x - camera_x
-        screen_y = self.y - camera_y
+        screen_y = self.y - camera_y + screen.get_height() // 2
 
         # 檢查是否在螢幕範圍內
         if (
