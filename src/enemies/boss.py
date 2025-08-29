@@ -46,10 +46,9 @@ class Boss(BaseEnemy):
         self.phase_health_thresholds = [0.7, 0.3]  # 70% 和 30% 血量時進入下個階段
 
         # 特殊技能系統
-        self.special_skills = ["area_attack", "summon_minions", "shockwave"]
+        self.special_skills = ["area_attack", "shockwave"]
         self.skill_cooldowns = {
             "area_attack": 0,
-            "summon_minions": 0,
             "shockwave": 0,
             "charge_attack": 0,
         }
@@ -59,9 +58,13 @@ class Boss(BaseEnemy):
         self.cast_timer = 0
         self.current_skill = None
 
-        # 小兵管理
-        self.minions = []
-        self.max_minions = 4
+        # 視覺效果系統
+        self.visual_effects = {
+            "basic_attack": {"active": False, "timer": 0, "type": "slash"},
+            "area_attack": {"active": False, "timer": 0, "type": "circle_explosion"},
+            "shockwave": {"active": False, "timer": 0, "type": "wave"},
+            "charge_attack": {"active": False, "timer": 0, "type": "lightning_trail"}
+        }
 
         # 視覺效果
         self.boss_color = (150, 0, 0)  # 深紅色
@@ -74,11 +77,10 @@ class Boss(BaseEnemy):
         # 攻擊模式
         self.attack_patterns = {
             1: ["basic_attack", "area_attack"],
-            2: ["basic_attack", "area_attack", "summon_minions"],
+            2: ["basic_attack", "area_attack"],
             3: [
                 "basic_attack",
                 "area_attack",
-                "summon_minions",
                 "shockwave",
                 "charge_attack",
             ],
@@ -156,43 +158,9 @@ class Boss(BaseEnemy):
 
         # 更新動畫
         self._update_animation()
-        self._update_animation()
-
-        # 除錯資訊：印出Boss座標和狀態
-        if hasattr(self, '_debug_timer'):
-            self._debug_timer += 1
-        else:
-            self._debug_timer = 0
-            
-        # 每60幀（約1秒）印出一次Boss狀態
-        if self._debug_timer % 60 == 0:
-            print(f"Boss座標: ({self.x:.1f}, {self.y:.1f}), 是否在地面: {self.is_on_ground}, 垂直速度: {self.velocity_y:.2f}")
-            
-            # 檢查Boss是否在平台範圍內
-            if platforms:
-                boss_rect = self.get_collision_rect()
-                on_platform = False
-                for i, platform in enumerate(platforms):
-                    platform_rect = pygame.Rect(platform.x, platform.y, platform.width, platform.height)
-                    # 檢查Boss腳部是否接觸平台頂部
-                    boss_bottom = boss_rect.bottom
-                    platform_top = platform_rect.top
-                    if (boss_rect.centerx >= platform_rect.left and 
-                        boss_rect.centerx <= platform_rect.right and 
-                        abs(boss_bottom - platform_top) <= 10):
-                        print(f"  -> Boss站在平台 {i}: ({platform.x}, {platform.y}, {platform.width}x{platform.height})")
-                        on_platform = True
-                        break
-                        
-                if not on_platform:
-                    print(f"  -> Boss沒有站在任何平台上！最近的平台距離:")
-                    for i, platform in enumerate(platforms[:3]):  # 只顯示前3個平台
-                        platform_rect = pygame.Rect(platform.x, platform.y, platform.width, platform.height)
-                        distance = abs(boss_rect.centery - platform_rect.centery)
-                        print(f"    平台 {i}: 距離 {distance:.1f} 像素")
-
-        # 更新小兵
-        self._update_minions(player, platforms)
+        
+        # 更新視覺效果
+        self._update_visual_effects()
 
     def _update_skill_cooldowns(self):
         """
@@ -370,6 +338,10 @@ class Boss(BaseEnemy):
         if self.attack_cooldown <= 0:
             attack_result = self.attack_player(player)
             self.attack_cooldown = self.max_attack_cooldown
+            
+            # 啟動基礎攻擊視覺效果
+            self.visual_effects["basic_attack"]["active"] = True
+            self.visual_effects["basic_attack"]["timer"] = 20  # 持續時間
 
             # 攻擊後稍微後退
             self.velocity_x = -self.facing_direction * self.speed * 0.5
@@ -425,7 +397,6 @@ class Boss(BaseEnemy):
         # 設定施法時間
         cast_times = {
             "area_attack": 60,  # 1秒
-            "summon_minions": 120,  # 2秒
             "shockwave": 90,  # 1.5秒
             "charge_attack": 30,  # 0.5秒
         }
@@ -459,8 +430,6 @@ class Boss(BaseEnemy):
         """
         if skill_name == "area_attack":
             self._area_attack(player)
-        elif skill_name == "summon_minions":
-            self._summon_minions()
         elif skill_name == "shockwave":
             self._shockwave_attack(player)
         elif skill_name == "charge_attack":
@@ -469,7 +438,6 @@ class Boss(BaseEnemy):
         # 設定技能冷卻時間
         cooldown_times = {
             "area_attack": 300,  # 5秒
-            "summon_minions": 600,  # 10秒
             "shockwave": 480,  # 8秒
             "charge_attack": 240,  # 4秒
         }
@@ -495,29 +463,12 @@ class Boss(BaseEnemy):
             self.area_attack_active = True
             self.area_attack_damage = damage
             self.area_attack_range = attack_range
-            self.area_attack_timer = 30  # 顯示效果持續 0.5 秒
         else:
             self.area_attack_active = False
 
-    def _summon_minions(self):
-        """
-        召喚小兵技能\n
-        \n
-        在 Boss 周圍生成小兵\n
-        """
-        # 如果小兵數量未滿，召喚新的小兵
-        minions_to_summon = min(2, self.max_minions - len(self.minions))
-
-        for i in range(minions_to_summon):
-            # 在 Boss 周圍隨機位置生成小兵
-            offset_x = random.randint(-80, 80)
-            offset_y = random.randint(-40, 40)
-
-            minion_x = self.x + offset_x
-            minion_y = self.y + offset_y
-
-            minion = BossMinion(minion_x, minion_y)
-            self.minions.append(minion)
+        # 啟動範圍攻擊視覺效果
+        self.visual_effects["area_attack"]["active"] = True
+        self.visual_effects["area_attack"]["timer"] = 60  # 持續 1 秒
 
     def _shockwave_attack(self, player):
         """
@@ -542,7 +493,10 @@ class Boss(BaseEnemy):
             self.shockwave_active = True
             self.shockwave_direction = (dx, dy)
             self.shockwave_damage = self.attack_damage + 20
-            self.shockwave_timer = 60  # 1秒持續時間
+            
+            # 啟動震波攻擊視覺效果
+            self.visual_effects["shockwave"]["active"] = True
+            self.visual_effects["shockwave"]["timer"] = 90  # 持續 1.5 秒
         else:
             self.shockwave_active = False
 
@@ -568,25 +522,25 @@ class Boss(BaseEnemy):
 
             # 設定衝刺狀態
             self.charge_attack_active = True
-            self.charge_attack_timer = 45  # 0.75秒衝刺時間
             self.charge_attack_damage = self.attack_damage + 25
+            
+            # 啟動衝刺攻擊視覺效果
+            self.visual_effects["charge_attack"]["active"] = True
+            self.visual_effects["charge_attack"]["timer"] = 45  # 持續 0.75 秒
         else:
             self.charge_attack_active = False
 
-    def _update_minions(self, player, platforms=None):
+    def _update_visual_effects(self):
         """
-        更新所有小兵狀態\n
-        \n
-        參數:\n
-        player: 玩家物件\n
-        platforms (list): 平台列表，用於小兵的碰撞檢測\n
+        更新所有視覺效果的計時器\n
         """
-        for minion in self.minions[:]:  # 使用複本避免修改時出錯
-            minion.update(player, platforms)
-
-            # 移除死亡的小兵
-            if minion.health <= 0:
-                self.minions.remove(minion)
+        for effect_name in self.visual_effects:
+            if self.visual_effects[effect_name]["active"]:
+                self.visual_effects[effect_name]["timer"] -= 1
+                
+                # 當計時器歸零時停用效果
+                if self.visual_effects[effect_name]["timer"] <= 0:
+                    self.visual_effects[effect_name]["active"] = False
 
     def update_ai(self, player, platforms=None):
         """
@@ -740,10 +694,6 @@ class Boss(BaseEnemy):
         # 繪製血量條（比普通敵人大）
         self._draw_boss_health_bar(screen, screen_x, screen_y)
 
-        # 繪製小兵
-        for minion in self.minions:
-            minion.draw(screen, camera_x, camera_y)
-
     def _draw_skill_effects(self, screen, camera_x, camera_y):
         """
         繪製技能特效\n
@@ -753,55 +703,114 @@ class Boss(BaseEnemy):
         camera_x (int): 攝影機 x 偏移\n
         camera_y (int): 攝影機 y 偏移\n
         """
-        # 範圍攻擊效果
-        if hasattr(self, "area_attack_active") and self.area_attack_active:
-            if hasattr(self, "area_attack_timer") and self.area_attack_timer > 0:
-                self.area_attack_timer -= 1
+        # 計算 Boss 中心的螢幕座標
+        center_x = self.x + self.width // 2 - camera_x
+        center_y = self.y + self.height // 2 - camera_y + screen.get_height() // 2
 
-                # 計算正確的螢幕座標
-                center_x = self.x + self.width // 2 - camera_x
-                center_y = self.y + self.height // 2 - camera_y + screen.get_height() // 2
-
-                # 繪製範圍攻擊圈
-                alpha = int((self.area_attack_timer / 30) * 100)
-                attack_surface = pygame.Surface(
-                    (self.area_attack_range * 2, self.area_attack_range * 2),
-                    pygame.SRCALPHA,
-                )
-                pygame.draw.circle(
-                    attack_surface,
-                    (255, 0, 0, alpha),
-                    (self.area_attack_range, self.area_attack_range),
-                    self.area_attack_range,
-                )
-                screen.blit(
-                    attack_surface,
-                    (
-                        center_x - self.area_attack_range,
-                        center_y - self.area_attack_range,
-                    ),
-                )
+        # 基礎攻擊效果：劍氣斬擊
+        if self.visual_effects["basic_attack"]["active"]:
+            timer = self.visual_effects["basic_attack"]["timer"]
+            max_timer = 20
+            
+            # 劍氣效果，根據面向方向
+            slash_length = 80
+            slash_width = 8
+            progress = (max_timer - timer) / max_timer
+            
+            # 計算劍氣位置
+            if self.facing_direction == 1:
+                start_x = center_x + 20
+                end_x = center_x + 20 + slash_length * progress
             else:
-                self.area_attack_active = False
+                start_x = center_x - 20
+                end_x = center_x - 20 - slash_length * progress
+                
+            start_y = center_y - 30
+            end_y = center_y + 30
+            
+            # 繪製劍氣斬擊（黃白色）
+            alpha = int(255 * (timer / max_timer))
+            slash_surface = pygame.Surface((abs(end_x - start_x) + slash_width, 60), pygame.SRCALPHA)
+            pygame.draw.line(slash_surface, (255, 255, 150, alpha), 
+                           (slash_width//2, 0), (abs(end_x - start_x), 60), slash_width)
+            screen.blit(slash_surface, (min(start_x, end_x) - slash_width//2, start_y))
 
-        # 震波攻擊效果
-        if hasattr(self, "shockwave_active") and self.shockwave_active:
-            if hasattr(self, "shockwave_timer") and self.shockwave_timer > 0:
-                self.shockwave_timer -= 1
+        # 範圍攻擊效果：多重爆炸圓環
+        if self.visual_effects["area_attack"]["active"]:
+            timer = self.visual_effects["area_attack"]["timer"]
+            max_timer = 60
+            progress = (max_timer - timer) / max_timer
+            
+            # 繪製多重爆炸圓環
+            for i in range(3):
+                ring_progress = max(0, progress - i * 0.2)
+                if ring_progress > 0:
+                    ring_radius = int(30 + ring_progress * 90)
+                    ring_alpha = int(150 * (1 - ring_progress) * (timer / max_timer))
+                    
+                    # 創建半透明表面
+                    ring_surface = pygame.Surface((ring_radius * 2, ring_radius * 2), pygame.SRCALPHA)
+                    ring_color = [255, 100 - i * 30, 0, ring_alpha]  # 從橙色漸變到紅色
+                    
+                    pygame.draw.circle(ring_surface, ring_color, (ring_radius, ring_radius), ring_radius, 5)
+                    screen.blit(ring_surface, (center_x - ring_radius, center_y - ring_radius))
 
-                # 計算正確的螢幕座標
-                start_x = self.x + self.width // 2 - camera_x
-                start_y = self.y + self.height // 2 - camera_y + screen.get_height() // 2
+        # 震波攻擊效果：電磁波動
+        if self.visual_effects["shockwave"]["active"] and hasattr(self, "shockwave_direction"):
+            timer = self.visual_effects["shockwave"]["timer"]
+            max_timer = 90
+            progress = (max_timer - timer) / max_timer
+            
+            # 計算震波傳播距離
+            wave_distance = progress * 200
+            end_x = center_x + self.shockwave_direction[0] * wave_distance
+            end_y = center_y + self.shockwave_direction[1] * wave_distance
+            
+            # 繪製主震波線
+            alpha = int(255 * (timer / max_timer))
+            pygame.draw.line(screen, (0, 255, 255, alpha), (center_x, center_y), (end_x, end_y), 8)
+            
+            # 繪製側邊波動效果
+            perpendicular_x = -self.shockwave_direction[1] * 15
+            perpendicular_y = self.shockwave_direction[0] * 15
+            
+            for i in range(5):
+                wave_pos = progress * (i + 1) / 5
+                if wave_pos <= 1:
+                    wave_x = center_x + self.shockwave_direction[0] * wave_distance * wave_pos
+                    wave_y = center_y + self.shockwave_direction[1] * wave_distance * wave_pos
+                    
+                    # 側邊波動
+                    side_alpha = int(alpha * 0.6)
+                    pygame.draw.line(screen, (100, 200, 255, side_alpha),
+                                   (wave_x + perpendicular_x, wave_y + perpendicular_y),
+                                   (wave_x - perpendicular_x, wave_y - perpendicular_y), 3)
 
-                wave_length = (60 - self.shockwave_timer) * 8
-                end_x = start_x + self.shockwave_direction[0] * wave_length
-                end_y = start_y + self.shockwave_direction[1] * wave_length
-
-                pygame.draw.line(
-                    screen, (255, 100, 0), (start_x, start_y), (end_x, end_y), 5
-                )
-            else:
-                self.shockwave_active = False
+        # 衝刺攻擊效果：雷電軌跡
+        if self.visual_effects["charge_attack"]["active"]:
+            timer = self.visual_effects["charge_attack"]["timer"]
+            max_timer = 45
+            
+            # 在 Boss 周圍繪製雷電效果
+            alpha = int(255 * (timer / max_timer))
+            
+            # 繪製多條隨機雷電
+            for i in range(6):
+                angle = (i * 60 + pygame.time.get_ticks() // 10) % 360
+                lightning_length = 40 + random.randint(-10, 10)
+                
+                end_x = center_x + math.cos(math.radians(angle)) * lightning_length
+                end_y = center_y + math.sin(math.radians(angle)) * lightning_length
+                
+                # 雷電顏色（紫白色）
+                lightning_color = (200, 150, 255, alpha)
+                pygame.draw.line(screen, lightning_color, (center_x, center_y), (end_x, end_y), 3)
+                
+            # 中心發光效果
+            glow_surface = pygame.Surface((80, 80), pygame.SRCALPHA)
+            glow_alpha = int(alpha * 0.3)
+            pygame.draw.circle(glow_surface, (255, 255, 255, glow_alpha), (40, 40), 40)
+            screen.blit(glow_surface, (center_x - 40, center_y - 40))
 
     def _draw_phase_indicators(self, screen, screen_x, screen_y):
         """
@@ -880,181 +889,3 @@ class Boss(BaseEnemy):
             screen, (255, 255, 255), (bar_x, bar_y, bar_width, bar_height), 1
         )
 
-
-######################Boss 小兵類別######################
-class BossMinion(BaseEnemy):
-    """
-    Boss 召喚的小兵\n
-    \n
-    比普通敵人弱但數量多的小兵：\n
-    1. 較低的血量和攻擊力\n
-    2. 較快的移動速度\n
-    3. 簡單的 AI 行為\n
-    4. 有限的存在時間\n
-    """
-
-    def __init__(self, x, y):
-        """
-        初始化小兵\n
-        \n
-        參數:\n
-        x (int): 初始 x 位置\n
-        y (int): 初始 y 位置\n
-        """
-        # 呼叫父類初始化，使用小兵級的屬性
-        super().__init__(x, y, health=50, attack_damage=15, speed=2)
-
-        # 小兵尺寸
-        self.width = 30
-        self.height = 30
-        self.detection_range = 100
-
-        # 存在時間（30秒後消失）
-        self.lifetime = 1800
-
-        # 小兵顏色（較淡的紅色）
-        self.color = (100, 50, 50)
-
-    def update(self, player, platforms=None):
-        """
-        更新小兵狀態\n
-        \n
-        包含簡化的 AI 和存在時間倒數\n
-        \n
-        參數:\n
-        player: 玩家物件\n
-        platforms (list): 平台列表，用於碰撞檢測\n
-        """
-        # 減少存在時間
-        self.lifetime -= 1
-        if self.lifetime <= 0:
-            self.health = 0  # 標記為死亡
-
-        # 簡單的追擊 AI
-        distance_to_player = abs(player.x - self.x) + abs(player.y - self.y)
-
-        if distance_to_player < self.detection_range:
-            if distance_to_player < 40:
-                self.state = "attack"
-            else:
-                self.state = "chase"
-        else:
-            self.state = "patrol"
-
-        # 呼叫父類更新
-        super().update(player, platforms)
-
-    def draw(self, screen, camera_x=0, camera_y=0):
-        """
-        繪製小兵\n
-        \n
-        使用較小的尺寸和不同顏色區別於普通敵人\n
-        """
-        # 計算正確的螢幕座標（與其他遊戲物件一致）
-        screen_x = self.x - camera_x
-        screen_y = self.y - camera_y + screen.get_height() // 2
-
-        # 檢查是否在螢幕範圍內
-        if (
-            screen_x < -50
-            or screen_x > screen.get_width() + 50
-            or screen_y < -50
-            or screen_y > screen.get_height() + 50
-        ):
-            return
-
-        # 存在時間不足時閃爍
-        if self.lifetime < 300:  # 最後 5 秒
-            if (self.lifetime // 10) % 2 == 0:  # 每 1/6 秒閃爍
-                return
-
-        # 繪製小兵主體
-        pygame.draw.rect(
-            screen, self.color, (screen_x, screen_y, self.width, self.height)
-        )
-
-        # 繪製簡單的血量指示
-        if self.health < self.max_health:
-            bar_width = self.width
-            bar_height = 4
-            bar_y = screen_y - 6
-
-            health_ratio = self.health / self.max_health
-            pygame.draw.rect(
-                screen,
-                (255, 0, 0),
-                (screen_x, bar_y, bar_width * health_ratio, bar_height),
-            )
-
-    def update_ai(self, player, platforms=None):
-        """
-        小兵 AI 更新（實現抽象方法）\n
-        \n
-        簡單的追擊玩家邏輯\n
-        \n
-        參數:\n
-        player: 玩家物件\n
-        """
-        # 小兵 AI 已在 update 方法中實現
-        distance_to_player = abs(player.x - self.x) + abs(player.y - self.y)
-
-        if distance_to_player < self.detection_range:
-            if distance_to_player < 40:
-                self.state = "attack"
-            else:
-                self.state = "chase"
-                # 向玩家移動
-                if player.x < self.x:
-                    self.velocity_x = -self.speed
-                else:
-                    self.velocity_x = self.speed
-        else:
-            self.state = "patrol"
-            self.velocity_x = 0
-
-    def attack_player(self, player) -> dict:
-        """
-        小兵攻擊玩家（實現抽象方法）\n
-        \n
-        參數:\n
-        player: 玩家物件\n
-        \n
-        回傳:\n
-        dict: 攻擊結果資訊\n
-        """
-        attack_info = {
-            "damage": self.attack_damage,
-            "hit": False,
-            "special_effects": [],
-        }
-
-        # 使用矩形碰撞檢測，比距離檢測更精確
-        minion_rect = self.get_collision_rect()
-        player_rect = player.get_collision_rect()
-        
-        # 擴展小兵攻擊範圍
-        attack_range_x = 35
-        attack_range_y = 20
-        
-        attack_rect = pygame.Rect(
-            minion_rect.x - attack_range_x//2, 
-            minion_rect.y - attack_range_y//2, 
-            minion_rect.width + attack_range_x, 
-            minion_rect.height + attack_range_y
-        )
-        
-        if attack_rect.colliderect(player_rect):
-            attack_info["hit"] = True
-
-        return attack_info
-
-    def render(self, screen: pygame.Surface, camera_y: float):
-        """
-        繪製小兵（實現抽象方法）\n
-        \n
-        參數:\n
-        screen: pygame 畫面物件\n
-        camera_y: 攝影機 y 偏移\n
-        """
-        # 直接呼叫已實現的 draw 方法
-        self.draw(screen, 0, camera_y)

@@ -220,6 +220,25 @@ class Level:
                     self.enemies.remove(enemy)
                     self.enemies_defeated += 1
 
+            # 檢查敵人是否攻擊玩家（敵人攻擊冷卻結束且在攻擊範圍內）
+            if enemy.attack_cooldown <= 0:
+                attack_result = enemy.attack_player(player)
+                
+                if attack_result["hit"]:
+                    # 敵人成功攻擊到玩家，讓玩家受傷
+                    player.take_damage(attack_result["damage"])
+                    
+                    # 重置敵人攻擊冷卻時間
+                    enemy.attack_cooldown = enemy.max_attack_cooldown
+                    
+                    # 處理特殊效果（如擊退）
+                    if "knockback" in attack_result.get("special_effects", []):
+                        # 計算擊退方向（從敵人到玩家的方向）
+                        dx = player.x - enemy.x
+                        if dx != 0:
+                            knockback_force = 8 if dx > 0 else -8
+                            player.velocity_x += knockback_force
+
         # 更新所有陷阱
         for trap in self.traps:
             trap.update()
