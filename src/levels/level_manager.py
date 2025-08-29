@@ -274,19 +274,19 @@ class LevelManager:
 
         enemies = [
             # 地面多層防守線 - 避開玩家出生點 (50, 700)
-            BasicEnemy(200, 630, patrol_range=100),  # 地面左側守衛，巡邏範圍 100-300
-            BasicEnemy(500, 730, patrol_range=120),  # 修正：放到地面平台上 (y=750-20=730)
-            BasicEnemy(800, 730, patrol_range=150),  # 修正：放到地面平台上 (y=750-20=730)
+            BasicEnemy(200, 720, patrol_range=100),  # 修正：放到地面平台上 (y=750-30=720)
+            BasicEnemy(500, 720, patrol_range=120),  # 修正：放到地面平台上 (y=750-30=720)
+            BasicEnemy(800, 720, patrol_range=150),  # 修正：放到地面平台上 (y=750-30=720)
             # 平台守衛軍團
-            BasicEnemy(500, 530, patrol_range=120),  # 增加巡邏範圍
-            BasicEnemy(250, 430, patrol_range=80),   # 修正：放到 Platform(150, 450) 上 (y=450-20=430)
-            BasicEnemy(200, 430, patrol_range=60),   # 修正：放到 Platform(150, 450) 上
-            BasicEnemy(700, 330, patrol_range=120),  # 修正：放到 Platform(600, 350) 上 (y=350-20=330)
-            BasicEnemy(750, 330, patrol_range=100),  # 修正：放到 Platform(600, 350) 上
+            BasicEnemy(500, 520, patrol_range=120),  # 修正：放到 Platform(400, 550) 上 (y=550-30=520)
+            BasicEnemy(250, 420, patrol_range=80),   # 修正：放到 Platform(150, 450) 上 (y=450-30=420)
+            BasicEnemy(200, 420, patrol_range=60),   # 修正：放到 Platform(150, 450) 上 (y=450-30=420)
+            BasicEnemy(700, 320, patrol_range=120),  # 修正：放到 Platform(600, 350) 上 (y=350-30=320)
+            BasicEnemy(750, 320, patrol_range=100),  # 修正：放到 Platform(600, 350) 上 (y=350-30=320)
             # 高處狙擊部隊
-            BasicEnemy(750, 130, patrol_range=100),
-            BasicEnemy(275, 230, patrol_range=80),   # 修正：放到 Platform(200, 250) 上 (y=250-20=230)
-            BasicEnemy(800, 130, patrol_range=90),   # 新增狙擊手
+            BasicEnemy(750, 120, patrol_range=100),  # 修正：放到 Platform(700, 150) 上 (y=150-30=120)
+            BasicEnemy(275, 220, patrol_range=80),   # 修正：放到 Platform(200, 250) 上 (y=250-30=220)
+            BasicEnemy(800, 120, patrol_range=90),   # 修正：放到 Platform(700, 150) 上 (y=150-30=120)
         ]
 
         return Level(
