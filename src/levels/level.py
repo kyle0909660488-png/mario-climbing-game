@@ -39,6 +39,7 @@ class Level:
         player_start_y: float,
         level_completion_height: float,
         background_color: Tuple[int, int, int],
+        background_image: str = None,
     ):
         """
         初始化關卡\n
@@ -54,6 +55,7 @@ class Level:
         player_start_y (float): 玩家起始 Y 座標\n
         level_completion_height (float): 完成關卡的目標高度\n
         background_color (Tuple): 背景顏色 (R, G, B)\n
+        background_image (str): 背景圖片檔案路徑，可選參數\n
         """
         self.level_number = level_number
         self.platforms = platforms
@@ -69,6 +71,13 @@ class Level:
 
         # 視覺設定
         self.background_color = background_color
+        self.background_image_path = background_image
+        self.background_image = None
+        self.background_scaled = None
+
+        # 載入背景圖片
+        if self.background_image_path:
+            self._load_background_image()
 
         # 關卡狀態
         self.is_completed = False
@@ -87,6 +96,71 @@ class Level:
 
         # 自動調整敵人巡邏範圍，避免掉下平台
         self._adjust_enemies_patrol_ranges()
+
+    def _load_background_image(self):
+        """
+        載入關卡背景圖片\n
+        \n
+        載入指定的背景圖片檔案，如果載入失敗會印出錯誤訊息並使用純色背景\n
+        """
+        try:
+            import os
+            # 檢查檔案是否存在
+            if not os.path.exists(self.background_image_path):
+                print(f"背景圖片檔案不存在: {self.background_image_path}")
+                return
+                
+            # 載入背景圖片
+            self.background_image = pygame.image.load(self.background_image_path).convert()
+            print(f"成功載入背景圖片: {self.background_image_path}")
+            
+        except pygame.error as e:
+            print(f"載入背景圖片失敗: {e}")
+            print(f"路徑: {self.background_image_path}")
+            self.background_image = None
+        except Exception as e:
+            print(f"載入背景圖片時發生未預期錯誤: {e}")
+            self.background_image = None
+
+    def _scale_background_for_screen(self, screen_size):
+        """
+        根據螢幕大小縮放背景圖片\n
+        \n
+        這個方法會在第一次渲染時被呼叫，將背景圖片調整到適合的大小\n
+        考慮垂直攀爬遊戲的特性，會將圖片拉高以適應關卡高度\n
+        \n
+        參數:\n
+        screen_size (Tuple[int, int]): 螢幕尺寸 (寬度, 高度)\n
+        """
+        if not self.background_image:
+            return
+            
+        try:
+            screen_width, screen_height = screen_size
+            
+            # 計算關卡的實際高度範圍（從最低平台到完成高度）
+            level_height = max(750 - self.level_completion_height, screen_height * 2)
+            
+            # 將背景拉高到關卡高度，保持比例或稍微變形以適應垂直空間
+            original_width, original_height = self.background_image.get_size()
+            
+            # 背景寬度適應螢幕寬度
+            target_width = screen_width
+            
+            # 背景高度適應關卡總高度，但至少要有螢幕高度的兩倍
+            target_height = max(level_height, screen_height * 2)
+            
+            # 縮放背景圖片
+            self.background_scaled = pygame.transform.scale(
+                self.background_image, 
+                (int(target_width), int(target_height))
+            )
+            
+            print(f"背景圖片已縮放至: {target_width}x{target_height}")
+            
+        except Exception as e:
+            print(f"縮放背景圖片時發生錯誤: {e}")
+            self.background_scaled = None
 
     def _adjust_enemies_patrol_ranges(self):
         """
@@ -182,12 +256,15 @@ class Level:
         camera_y (float): 攝影機的 Y 軸偏移（用於卷軸效果）\n
         \n
         繪製順序:\n
-        1. 背景 → 2. 平台 → 3. 陷阱 → 4. 敵人\n
+        1. 背景色 → 2. 背景圖片 → 3. 背景裝飾 → 4. 平台 → 5. 陷阱 → 6. 敵人\n
         """
-        # 填充背景色
+        # 先填充背景色（當做保底色彩）
         screen.fill(self.background_color)
 
-        # 繪製背景裝飾（雲朵、遠山等）
+        # 繪製背景圖片（如果有的話）
+        self._draw_background_image(screen, camera_y)
+
+        # 繪製背景裝飾（雲朵、遠山等）- 在背景圖片之上，但在遊戲物件之下
         self._draw_background_decorations(screen, camera_y)
 
         # 繪製所有平台
@@ -204,6 +281,51 @@ class Level:
 
         # 繪製關卡特殊效果
         self._draw_level_effects(screen, camera_y)
+
+    def _draw_background_image(self, screen: pygame.Surface, camera_y: float):
+        """
+        繪製關卡背景圖片\n
+        \n
+        根據攝影機位置繪製背景圖片，實現視差效果\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 螢幕表面\n
+        camera_y (float): 攝影機偏移\n
+        """
+        if not self.background_image:
+            return
+            
+        # 第一次渲染時縮放背景圖片
+        if not self.background_scaled:
+            self._scale_background_for_screen(screen.get_size())
+            
+        if not self.background_scaled:
+            return
+            
+        try:
+            screen_height = screen.get_height()
+            
+            # 計算背景圖片的Y軸位置
+            # 背景相對靜止，但會隨攝影機移動產生視差效果
+            # 使用較小的視差係數（0.3）讓背景移動得比前景慢
+            background_y = -camera_y * 0.3
+            
+            # 確保背景圖片能涵蓋整個可見區域
+            # 當攝影機在不同高度時，背景都要能正確顯示
+            background_rect = pygame.Rect(
+                0,                    # X 座標對齊螢幕左邊
+                background_y,         # Y 座標根據攝影機調整
+                self.background_scaled.get_width(),
+                self.background_scaled.get_height()
+            )
+            
+            # 繪製背景圖片
+            screen.blit(self.background_scaled, background_rect)
+            
+        except Exception as e:
+            print(f"繪製背景圖片時發生錯誤: {e}")
+            # 發生錯誤時回退到純色背景
+            screen.fill(self.background_color)
 
     def _draw_background_decorations(self, screen: pygame.Surface, camera_y: float):
         """

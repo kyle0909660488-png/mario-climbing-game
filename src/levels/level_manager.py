@@ -114,6 +114,7 @@ class LevelManager:
             player_start_y=700,  # 在地面出生
             level_completion_height=30,  # 到達高度 30 就算完成
             background_color=(135, 206, 235),  # 天空藍
+            background_image="assets/images/場景1.png",  # 第一關背景圖片
         )
 
     def _create_level_2(self) -> Level:
@@ -144,8 +145,8 @@ class LevelManager:
 
         traps = [
             # 地面尖刺 - 避開玩家出生點 (50, 700)
-            Spike(250, 730, 60, 20),  # 移到更右邊，避開出生點
-            Spike(900, 730, 100, 20),
+            Spike(250, 630, 60, 20),  # 移到更右邊，避開出生點
+            Spike(900, 630, 100, 20),
             # 平台間的尖刺
             Spike(520, 530, 60, 20),
             Spike(320, 330, 80, 20),
@@ -155,7 +156,7 @@ class LevelManager:
         # 第二關引入基本敵人，讓玩家熟悉戰鬥機制
         enemies = [
             # 地面巡邏的溫和敵人，教學用途 - 確保不會接近玩家出生點 (50, 700)
-            BasicEnemy(800, 730, patrol_range=100),  # 移到更右邊，巡邏範圍 700-900
+            BasicEnemy(800, 630, patrol_range=100),  # 移到更右邊，巡邏範圍 700-900
             # 平台上的敵人，需要跳上去才會遭遇
             BasicEnemy(150, 630, patrol_range=80),
         ]
@@ -169,6 +170,7 @@ class LevelManager:
             player_start_y=700,  # 在地面出生
             level_completion_height=30,
             background_color=(100, 149, 237),  # 深一點的藍色
+            background_image="assets/images/場景2.png",  # 第二關背景圖片
         )
 
     def _create_level_3(self) -> Level:
@@ -216,8 +218,8 @@ class LevelManager:
         # 第三關增加敵人配置，搭配移動平台增加挑戰難度
         enemies = [
             # 地面守衛，阻擋玩家前進 - 避開玩家出生點 (100, 700)
-            BasicEnemy(500, 730, patrol_range=100),  # 移到中央，巡邏範圍 400-600
-            BasicEnemy(850, 730, patrol_range=100),  # 右側守衛，巡邏範圍 750-950
+            BasicEnemy(500, 630, patrol_range=100),  # 移到中央，巡邏範圍 400-600
+            BasicEnemy(850, 630, patrol_range=100),  # 右側守衛，巡邏範圍 750-950
             # 平台上的敵人，需要配合移動平台作戰
             BasicEnemy(350, 530, patrol_range=60),
             # 高處狙擊手，給玩家攀爬時的壓力
@@ -233,6 +235,7 @@ class LevelManager:
             player_start_y=700,
             level_completion_height=30,
             background_color=(70, 130, 180),  # 鋼青色
+            background_image="assets/images/場景3.png",  # 第三關背景圖片
         )
 
     def _create_level_4(self) -> Level:
@@ -260,8 +263,8 @@ class LevelManager:
 
         traps = [
             # 混合各種陷阱增加難度 - 避開玩家出生點 (50, 700)
-            Spike(150, 730, 50, 20),  # 稍微移開出生點
-            Spike(1100, 730, 80, 20),
+            Spike(150, 630, 50, 20),  # 稍微移開出生點
+            Spike(1100, 630, 80, 20),
             FireWall(500, 450, 30, 100),
             Spike(400, 230, 60, 20),
             # 新增更多陷阱挑戰
@@ -271,9 +274,9 @@ class LevelManager:
 
         enemies = [
             # 地面多層防守線 - 避開玩家出生點 (50, 700)
-            BasicEnemy(200, 730, patrol_range=100),  # 地面左側守衛，巡邏範圍 100-300
-            BasicEnemy(500, 730, patrol_range=120),  # 地面中央守衛，巡邏範圍 380-620
-            BasicEnemy(800, 730, patrol_range=150),  # 地面右側守衛，巡邏範圍 650-950
+            BasicEnemy(200, 630, patrol_range=100),  # 地面左側守衛，巡邏範圍 100-300
+            BasicEnemy(500, 630, patrol_range=120),  # 地面中央守衛，巡邏範圍 380-620
+            BasicEnemy(800, 630, patrol_range=150),  # 地面右側守衛，巡邏範圍 650-950
             # 平台守衛軍團
             BasicEnemy(500, 530, patrol_range=120),  # 增加巡邏範圍
             BasicEnemy(250, 430, patrol_range=80),
@@ -282,7 +285,7 @@ class LevelManager:
             BasicEnemy(800, 330, patrol_range=100),  # 新增平台敵人
             # 高處狙擊部隊
             BasicEnemy(750, 130, patrol_range=100),
-            BasicEnemy(250, 230, patrol_range=80),  # 新增狙擊手
+            BasicEnemy(250, 130, patrol_range=80),  # 新增狙擊手
             BasicEnemy(800, 130, patrol_range=90),  # 新增狙擊手
         ]
 
@@ -295,6 +298,7 @@ class LevelManager:
             player_start_y=700,
             level_completion_height=30,
             background_color=(25, 25, 112),  # 深夜藍
+            background_image="assets/images/場景4.png",  # 第四關背景圖片
         )
 
     def _create_level_5(self) -> Level:
@@ -326,8 +330,8 @@ class LevelManager:
 
         traps = [
             # Boss 戰區域的環境危險 - 避開玩家出生點 (500, 700)
-            Spike(200, 730, 60, 20),  # 左側尖刺，避開中央出生點
-            Spike(800, 730, 60, 20),  # 右側尖刺
+            Spike(200, 630, 60, 20),  # 左側尖刺，避開中央出生點
+            Spike(800, 630, 60, 20),  # 右側尖刺
             FireWall(100, 550, 30, 100),
             FireWall(1070, 550, 30, 100),
             # 動態危險增加戰鬥複雜度
@@ -340,22 +344,18 @@ class LevelManager:
 
         enemies = [
             # Boss 前哨部隊 - 第一波挑戰，避開玩家出生點 (600, 700)
-            BasicEnemy(200, 730, patrol_range=100),  # 左側守衛，巡邏範圍 100-300
-            BasicEnemy(900, 730, patrol_range=100),  # 右側守衛，巡邏範圍 800-1000
+            BasicEnemy(200, 630, patrol_range=100),  # 左側守衛，巡邏範圍 100-300
+            BasicEnemy(900, 630, patrol_range=100),  # 右側守衛，巡邏範圍 800-1000
             # 中層防禦線 - 阻礙玩家接近頂部
             BasicEnemy(250, 430, patrol_range=50),
             BasicEnemy(850, 430, patrol_range=50),
             BasicEnemy(150, 630, patrol_range=60),  # 新增側翼守衛
             BasicEnemy(1000, 630, patrol_range=60),  # 新增側翼守衛
             # 精英護衛 - 關卡最終挑戰
-            BasicEnemy(400, 330, patrol_range=40),  # 平台左側護衛
             BasicEnemy(700, 330, patrol_range=40),  # 平台右側護衛
             # 新增更多敵人增加難度
             BasicEnemy(350, 530, patrol_range=60),  # 移動平台附近的敵人
             # 修正：將高處敵人移到有平台支撐的位置
-            BasicEnemy(
-                1100, 230, patrol_range=50
-            ),  # 修正到有平台的位置 (1050, 250 平台)
         ]
 
         return Level(
