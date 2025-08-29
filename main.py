@@ -12,6 +12,7 @@ from src.equipment.equipment_manager import EquipmentManager
 from src.equipment.potion import PotionDropManager
 from src.projectiles.fireball import FireballManager
 from src.projectiles.iceball import IceballManager
+from src.audio.sound_manager import SoundManager
 
 ######################遊戲設定常數######################
 # 畫面設定
@@ -207,7 +208,9 @@ class MarioClimbingGame:
 
         # 初始化各個遊戲系統（先設為 None，等選角完成後才建立）
         self.player = None
-        self.level_manager = LevelManager()
+        # 初始化音效管理器
+        self.sound_manager = SoundManager()
+        self.level_manager = LevelManager(self.sound_manager)
         self.ui = GameUI(SCREEN_WIDTH, SCREEN_HEIGHT)
         self.equipment_manager = EquipmentManager()
         self.potion_drop_manager = PotionDropManager()
@@ -392,6 +395,10 @@ class MarioClimbingGame:
         character_type (int): 角色類型編號，範圍 0-2\n
         difficulty (str): 難度模式，"easy" 或 "hard"\n
         """
+        # 播放選角色音效
+        if hasattr(self, 'sound_manager') and self.sound_manager:
+            self.sound_manager.play_sound("選角色", force=True)
+        
         # 建立選定的角色
         start_x = SCREEN_WIDTH // 2
         start_y = SCREEN_HEIGHT - 100  # 從畫面底部開始
@@ -404,6 +411,7 @@ class MarioClimbingGame:
         self.player.set_equipment_manager(self.equipment_manager)
         self.player.set_fireball_manager(self.fireball_manager)
         self.player.set_iceball_manager(self.iceball_manager)
+        self.player.set_sound_manager(self.sound_manager)
 
         # 重置關卡管理器到第一關，並設定難度
         self.level_manager.reset_to_first_level()
@@ -580,6 +588,9 @@ class MarioClimbingGame:
             # 更新藥水掉落物品
             self.potion_drop_manager.update()
 
+            # 更新音效系統狀態
+            self.sound_manager.update()
+
             # 檢查玩家撿拾藥水
             picked_potions = self.potion_drop_manager.check_pickup(
                 self.player.x + self.player.width // 2,  # 玩家中心點
@@ -643,6 +654,11 @@ class MarioClimbingGame:
         # 檢查所有敵人，找出剛死亡的
         for enemy in current_level.enemies[:]:  # 使用複本避免修改時出錯
             if enemy.health <= 0:
+                # 檢查是否為 Boss 並播放死亡音效
+                if hasattr(enemy, "boss_type") or enemy.__class__.__name__ == "Boss":
+                    if hasattr(self, 'sound_manager') and self.sound_manager:
+                        self.sound_manager.play_sound("boss死掉", force=True)
+                
                 # 敵人死亡，嘗試掉落藥水
                 drop_x = enemy.x + enemy.width // 2
                 drop_y = enemy.y + enemy.height // 2
@@ -708,6 +724,9 @@ class MarioClimbingGame:
             if self.level_manager.current_level_number == 6:
                 # 第六關：檢查是否所有 Boss 都被擊敗了
                 if self._all_bosses_defeated():
+                    # 播放勝利音效
+                    if hasattr(self, 'sound_manager') and self.sound_manager:
+                        self.sound_manager.play_sound("勝利", force=True)
                     self.game_state = "victory"
                     return
                 else:

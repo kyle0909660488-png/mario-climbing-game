@@ -124,10 +124,10 @@ class Level:
 
     def _scale_background_for_screen(self, screen_size):
         """
-        根據螢幕大小縮放背景圖片\n
+        根據螢幕大小等比例縮放背景圖片\n
         \n
-        這個方法會在第一次渲染時被呼叫，將背景圖片調整到適合的大小\n
-        考慮垂直攀爬遊戲的特性，會將圖片拉高以適應關卡高度\n
+        使用等比例縮放保持圖片原始比例，避免扭曲變形\n
+        背景圖片會被縮放到完全填滿螢幕，多餘部分會被裁切\n
         \n
         參數:\n
         screen_size (Tuple[int, int]): 螢幕尺寸 (寬度, 高度)\n
@@ -137,26 +137,29 @@ class Level:
             
         try:
             screen_width, screen_height = screen_size
-            
-            # 計算關卡的實際高度範圍（從最低平台到完成高度）
-            level_height = max(750 - self.level_completion_height, screen_height * 2)
-            
-            # 將背景拉高到關卡高度，保持比例或稍微變形以適應垂直空間
             original_width, original_height = self.background_image.get_size()
             
-            # 背景寬度適應螢幕寬度
-            target_width = screen_width
+            # 計算縮放比例，確保圖片完全填滿螢幕
+            # 使用較大的縮放比例，讓圖片能夠覆蓋整個螢幕
+            scale_x = screen_width / original_width
+            scale_y = screen_height / original_height
+            scale = max(scale_x, scale_y)  # 使用較大的比例確保填滿螢幕
             
-            # 背景高度適應關卡總高度，但至少要有螢幕高度的兩倍
-            target_height = max(level_height, screen_height * 2)
+            # 計算縮放後的尺寸（保持等比例）
+            target_width = int(original_width * scale)
+            target_height = int(original_height * scale)
             
-            # 縮放背景圖片
+            # 等比例縮放背景圖片
             self.background_scaled = pygame.transform.scale(
                 self.background_image, 
-                (int(target_width), int(target_height))
+                (target_width, target_height)
             )
             
-            print(f"背景圖片已縮放至: {target_width}x{target_height}")
+            # 如果縮放後的圖片比螢幕大，計算置中偏移
+            self.background_offset_x = (screen_width - target_width) // 2
+            self.background_offset_y = (screen_height - target_height) // 2
+            
+            print(f"背景圖片等比例縮放: {original_width}x{original_height} -> {target_width}x{target_height} (比例: {scale:.2f})")
             
         except Exception as e:
             print(f"縮放背景圖片時發生錯誤: {e}")
@@ -275,12 +278,9 @@ class Level:
         camera_y (float): 攝影機的 Y 軸偏移（用於卷軸效果）\n
         \n
         繪製順序:\n
-        1. 背景色 → 2. 背景圖片 → 3. 背景裝飾 → 4. 平台 → 5. 陷阱 → 6. 敵人\n
+        1. 背景圖片 → 2. 背景裝飾 → 3. 平台 → 4. 陷阱 → 5. 敵人\n
         """
-        # 先填充背景色（當做保底色彩）
-        screen.fill(self.background_color)
-
-        # 繪製背景圖片（如果有的話）
+        # 繪製背景圖片（固定背景，不跟隨攝影機移動）
         self._draw_background_image(screen, camera_y)
 
         # 繪製背景裝飾（雲朵、遠山等）- 在背景圖片之上，但在遊戲物件之下
@@ -305,13 +305,16 @@ class Level:
         """
         繪製關卡背景圖片\n
         \n
-        根據攝影機位置繪製背景圖片，實現視差效果\n
+        背景圖片固定在螢幕上，不跟隨攝影機移動\n
+        使用等比例縮放，確保圖片不會扭曲變形\n
         \n
         參數:\n
         screen (pygame.Surface): 螢幕表面\n
-        camera_y (float): 攝影機偏移\n
+        camera_y (float): 攝影機偏移（此參數在固定背景中不使用）\n
         """
         if not self.background_image:
+            # 如果沒有背景圖片，用純色填充作為保底
+            screen.fill(self.background_color)
             return
             
         # 第一次渲染時縮放背景圖片
@@ -319,26 +322,21 @@ class Level:
             self._scale_background_for_screen(screen.get_size())
             
         if not self.background_scaled:
+            # 縮放失敗時用純色填充
+            screen.fill(self.background_color)
             return
             
         try:
-            screen_height = screen.get_height()
-            
-            # 計算背景圖片的Y軸位置
-            # 背景相對靜止，但會隨攝影機移動產生視差效果
-            # 使用較小的視差係數（0.3）讓背景移動得比前景慢
-            background_y = -camera_y * 0.3
-            
-            # 確保背景圖片能涵蓋整個可見區域
-            # 當攝影機在不同高度時，背景都要能正確顯示
+            # 背景圖片固定在螢幕位置，不跟隨攝影機移動
+            # 使用計算好的偏移來置中顯示
             background_rect = pygame.Rect(
-                0,                    # X 座標對齊螢幕左邊
-                background_y,         # Y 座標根據攝影機調整
+                getattr(self, 'background_offset_x', 0),  # X 偏移（置中）
+                getattr(self, 'background_offset_y', 0),  # Y 偏移（置中）
                 self.background_scaled.get_width(),
                 self.background_scaled.get_height()
             )
             
-            # 繪製背景圖片
+            # 繪製固定背景圖片
             screen.blit(self.background_scaled, background_rect)
             
         except Exception as e:
@@ -359,86 +357,10 @@ class Level:
         screen_height = screen.get_height()
 
         # 根據關卡編號繪製不同的背景裝飾
-        if self.level_number <= 2:
-            # 前兩關繪製雲朵
-            self._draw_clouds(screen, camera_y)
-        elif self.level_number == 3:
-            # 第三關繪製工業風格的背景
-            self._draw_industrial_background(screen, camera_y)
-        elif self.level_number == 4:
-            # 第四關繪製夜晚星空
+        if self.level_number == 4:
+            # 第四關繪製夜晚星空（保留星星）
             self._draw_night_sky(screen, camera_y)
-        elif self.level_number == 5:
-            # 最終關繪製神秘的紫色能量效果
-            self._draw_mystical_effects(screen, camera_y)
-
-    def _draw_clouds(self, screen: pygame.Surface, camera_y: float):
-        """
-        繪製雲朵裝飾\n
-        \n
-        在天空背景中繪製白雲\n
-        """
-        cloud_color = (255, 255, 255, 100)  # 半透明白色
-        screen_height = screen.get_height()
-
-        # 計算雲朵位置（考慮攝影機移動）
-        cloud_positions = [
-            (100, 200),
-            (300, 150),
-            (600, 180),
-            (900, 120),
-            (150, 400),
-            (450, 350),
-            (750, 380),
-            (1000, 320),
-            (80, 600),
-            (400, 550),
-            (800, 580),
-        ]
-
-        for cloud_x, cloud_y in cloud_positions:
-            # 根據攝影機位置調整雲朵的螢幕座標
-            screen_y = cloud_y - camera_y * 0.3 + screen_height // 2  # 視差效果
-
-            # 只繪製在螢幕範圍內的雲朵
-            if -50 < screen_y < screen_height + 50:
-                # 用幾個圓形組成雲朵形狀
-                pygame.draw.circle(
-                    screen, (240, 240, 240), (int(cloud_x), int(screen_y)), 25
-                )
-                pygame.draw.circle(
-                    screen, (240, 240, 240), (int(cloud_x + 20), int(screen_y)), 20
-                )
-                pygame.draw.circle(
-                    screen, (240, 240, 240), (int(cloud_x + 35), int(screen_y + 10)), 18
-                )
-
-    def _draw_industrial_background(self, screen: pygame.Surface, camera_y: float):
-        """
-        繪製工業風格背景\n
-        \n
-        第三關的工廠背景裝飾\n
-        """
-        # 繪製遠處的工廠煙囪
-        chimney_color = (60, 60, 60)
-        screen_height = screen.get_height()
-
-        chimneys = [(200, 500), (800, 450), (1000, 520)]
-        for chimney_x, chimney_y in chimneys:
-            screen_y = chimney_y - camera_y * 0.2 + screen_height // 2
-            if -100 < screen_y < screen_height + 100:
-                # 煙囪主體
-                pygame.draw.rect(screen, chimney_color, (chimney_x, screen_y, 30, 150))
-                # 煙霧效果
-                for i in range(3):
-                    smoke_y = screen_y - 20 - i * 15
-                    smoke_alpha = 100 - i * 30
-                    pygame.draw.circle(
-                        screen,
-                        (200, 200, 200),
-                        (chimney_x + 15, int(smoke_y)),
-                        8 + i * 2,
-                    )
+        # 第一二關的雲朵、第三關的工業背景、第五關的能量圓圈已移除
 
     def _draw_night_sky(self, screen: pygame.Surface, camera_y: float):
         """
@@ -476,28 +398,6 @@ class Level:
             if -20 < screen_y < screen_height + 20:
                 # 繪製閃爍的星星
                 pygame.draw.circle(screen, star_color, (int(star_x), int(screen_y)), 2)
-
-    def _draw_mystical_effects(self, screen: pygame.Surface, camera_y: float):
-        """
-        繪製神秘能量效果\n
-        \n
-        最終關的特殊視覺效果\n
-        """
-        # 繪製紫色能量波動
-        effect_color = (148, 0, 211, 50)  # 半透明紫色
-        screen_height = screen.get_height()
-
-        # 創建能量波動效果（這裡簡化為圓圈）
-        energy_centers = [(300, 200), (700, 300), (500, 500)]
-
-        for center_x, center_y in energy_centers:
-            screen_y = center_y - camera_y * 0.4 + screen_height // 2
-            if -100 < screen_y < screen_height + 100:
-                # 繪製多層能量圈
-                for radius in [20, 40, 60]:
-                    pygame.draw.circle(
-                        screen, (148, 0, 211), (int(center_x), int(screen_y)), radius, 2
-                    )
 
     def _draw_level_effects(self, screen: pygame.Surface, camera_y: float):
         """

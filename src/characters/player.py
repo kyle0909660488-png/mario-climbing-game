@@ -164,6 +164,10 @@ class Player:
         # 裝備管理器引用
         self.equipment_manager = None
 
+        # 音效管理器引用
+        self.sound_manager = None
+        self.last_low_health_check = 0  # 上次檢查低血量的時間
+
     def handle_input(self, keys, platforms: List = None):
         """
         處理玩家輸入\n
@@ -436,24 +440,35 @@ class Player:
 
         # 根據投射物類型發射對應的投射物
         current_damage = self.get_current_attack_damage()
+        projectile_created = False
+        
         if self.projectile_type == "fireball":
             # 檢查是否有火球管理器
             if self.fireball_manager:
                 self.fireball_manager.create_fireball(
                     launch_x, launch_y, direction, current_damage
                 )
+                projectile_created = True
+                # 播放發射火球音效
+                if self.sound_manager:
+                    self.sound_manager.play_sound("發射火")
+                    
         elif self.projectile_type == "iceball":
             # 檢查是否有冰球管理器
             if self.iceball_manager:
                 self.iceball_manager.create_iceball(
                     launch_x, launch_y, direction, current_damage
                 )
+                projectile_created = True
+                # 播放發射冰球音效
+                if self.sound_manager:
+                    self.sound_manager.play_sound("發射冰")
 
-        # 設定攻擊冷卻時間
-        self.attack_cooldown = self.max_attack_cooldown
-
-        # 更新面向方向記錄
-        self.last_facing_direction = direction
+        # 只有成功發射投射物時才設定冷卻時間
+        if projectile_created:
+            self.attack_cooldown = self.max_attack_cooldown
+            # 更新面向方向記錄
+            self.last_facing_direction = direction
 
     def _perform_fireball_attack(self):
         """
@@ -522,6 +537,13 @@ class Player:
 
         # 處理靜止回血機制
         self._handle_idle_healing()
+
+        # 定期檢查殘血狀態並播放音效（比在 take_damage 中更可靠）
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_low_health_check > 3000:  # 每3秒檢查一次
+            self.last_low_health_check = current_time
+            if self.health <= 20 and self.health > 0 and self.sound_manager:
+                self.sound_manager.play_low_health_warning(self.health, self.max_health)
 
     def _update_horizontal_movement(self, platforms: List):
         """
@@ -804,6 +826,13 @@ class Player:
             # 血量不能低於 0
             if self.health < 0:
                 self.health = 0
+
+            # 檢查是否死亡，播放死亡音效
+            if self.health <= 0 and self.sound_manager:
+                self.sound_manager.play_sound("玩家死掉", force=True)
+            # 檢查是否血量過低，播放殘血音效（優先順序最高）
+            elif self.health <= 20 and self.sound_manager:
+                self.sound_manager.play_low_health_warning(self.health, self.max_health)
 
     def get_attack_rect(self) -> pygame.Rect:
         """
@@ -1094,6 +1123,17 @@ class Player:
         equipment_manager: 裝備管理器物件\n
         """
         self.equipment_manager = equipment_manager
+
+    def set_sound_manager(self, sound_manager):
+        """
+        設置音效管理器引用\n
+        \n
+        讓玩家能夠播放相關音效（死亡、殘血等）\n
+        \n
+        參數:\n
+        sound_manager (SoundManager): 音效管理器物件\n
+        """
+        self.sound_manager = sound_manager
 
     ######################藥水效果方法######################
     def heal(self, amount: int):

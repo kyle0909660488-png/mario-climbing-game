@@ -1,6 +1,6 @@
 ######################載入套件######################
 import pygame
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 from src.levels.level import Level
 from src.levels.platform import Platform
 from src.traps.spike import Spike
@@ -32,16 +32,20 @@ class LevelManager:
     - 隨著關卡增加，難度逐漸提升\n
     """
 
-    def __init__(self):
+    def __init__(self, sound_manager=None):
         """
         初始化關卡管理器\n
         \n
         建立所有關卡的基本資料和配置\n
+        \n
+        參數:\n
+        sound_manager (SoundManager): 音效管理器，用於播放關卡切換音效\n
         """
         self.current_level_number = 1
         self.levels = []
         self.max_level = 6  # 更新為 6 個關卡，新增第六關 Boss 戰
         self.difficulty = "easy"  # 預設難度為簡單模式
+        self.sound_manager = sound_manager  # 音效管理器引用
 
         # 建立所有關卡
         self._create_all_levels()
@@ -367,6 +371,7 @@ class LevelManager:
             player_start_y=700,
             level_completion_height=30,
             background_color=(25, 25, 112),  # 深夜藍（保持挑戰關卡的氛圍）
+            background_image="assets/images/場景5.png",  # 第五關背景圖片
         )
 
     def _create_level_6(self) -> Level:
@@ -460,6 +465,7 @@ class LevelManager:
             player_start_y=700,
             level_completion_height=60,  # 調整完成高度，配合新的勝利平台
             background_color=(75, 0, 130),  # 深紫色（最終 Boss 戰氣氛）
+            background_image="assets/images/場景6.png",  # 第六關背景圖片
         )
 
     def get_current_level(self) -> Level:
@@ -482,6 +488,9 @@ class LevelManager:
         """
         if self.current_level_number < self.max_level:
             self.current_level_number += 1
+            # 播放新關卡的背景音樂
+            if self.sound_manager:
+                self.sound_manager.play_level_music(self.current_level_number)
             return True
         return False  # 已經是最後一關了
 
@@ -496,6 +505,10 @@ class LevelManager:
         # 重置所有關卡的狀態
         for level in self.levels:
             level.reset()
+        
+        # 播放第一關背景音樂
+        if self.sound_manager:
+            self.sound_manager.play_level_music(1)
 
     def is_final_level(self) -> bool:
         """
@@ -625,6 +638,9 @@ class LevelManager:
             current_level = self.get_current_level()
             current_level.reset()
             print(f"重置第 {target_level} 關")
+            # 重新播放背景音樂
+            if self.sound_manager:
+                self.sound_manager.play_level_music(target_level)
             return True
 
         # 切換到目標關卡
@@ -633,6 +649,10 @@ class LevelManager:
         # 重置目標關卡的狀態（清除死亡的敵人、重置陷阱等）
         target_level_obj = self.get_current_level()
         target_level_obj.reset()
+        
+        # 播放目標關卡的背景音樂
+        if self.sound_manager:
+            self.sound_manager.play_level_music(target_level)
         
         print(f"跳轉到第 {target_level} 關")
         return True

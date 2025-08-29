@@ -1,6 +1,7 @@
 ######################載入套件######################
 import pygame
 import math
+import os
 from typing import Tuple, Optional
 from src.traps.base_trap import BaseTrap
 
@@ -90,6 +91,9 @@ class MovingPlatform(BaseTrap):
 
         # 更新初始速度
         self._update_velocity()
+        
+        # 載入移動平台圖片
+        self._load_platform_images()
 
     def _update_velocity(self):
         """
@@ -108,6 +112,43 @@ class MovingPlatform(BaseTrap):
         else:
             self.velocity_x = -self.direction_x * self.speed
             self.velocity_y = -self.direction_y * self.speed
+
+    def _load_platform_images(self):
+        """
+        載入移動平台的 tile 圖片\n
+        \n
+        載入左中右三個部分的 tile 圖片，用於拼接不同大小的移動平台\n
+        """
+        try:
+            # 載入移動平台的左中右 tile 圖片
+            assets_path = "assets/images/"
+            self.tile_left = pygame.image.load(os.path.join(assets_path, "tile_0100.png")).convert_alpha()
+            self.tile_middle = pygame.image.load(os.path.join(assets_path, "tile_0101.png")).convert_alpha()
+            self.tile_right = pygame.image.load(os.path.join(assets_path, "tile_0102.png")).convert_alpha()
+            
+            # 取得 tile 的原始尺寸
+            self.tile_size = self.tile_left.get_size()
+            
+            # 根據平台高度調整 tile 大小
+            if self.height != self.tile_size[1]:
+                scale_ratio = self.height / self.tile_size[1]
+                new_width = int(self.tile_size[0] * scale_ratio)
+                new_height = int(self.height)
+                
+                self.tile_left = pygame.transform.scale(self.tile_left, (new_width, new_height))
+                self.tile_middle = pygame.transform.scale(self.tile_middle, (new_width, new_height))
+                self.tile_right = pygame.transform.scale(self.tile_right, (new_width, new_height))
+                
+                # 更新 tile 尺寸
+                self.tile_size = (new_width, new_height)
+            
+        except pygame.error as e:
+            print(f"無法載入移動平台圖片: {e}")
+            # 如果載入失敗，設定為 None，改用幾何圖形
+            self.tile_left = None
+            self.tile_middle = None
+            self.tile_right = None
+            self.tile_size = (32, 32)  # 預設大小
 
     def update(self):
         """
@@ -214,7 +255,7 @@ class MovingPlatform(BaseTrap):
         """
         繪製移動平台\n
         \n
-        繪製平台本體和移動指示器\n
+        繪製平台本體和移動指示器，使用 tile 圖片\n
         \n
         參數:\n
         screen (pygame.Surface): 螢幕表面\n
@@ -227,6 +268,61 @@ class MovingPlatform(BaseTrap):
         screen_x = int(self.current_x)
         screen_y = int(self.current_y - camera_y + screen.get_height() // 2)
 
+        # 如果有載入 tile 圖片，使用 tile 繪製
+        if self.tile_left and self.tile_middle and self.tile_right:
+            self._render_with_tiles(screen, screen_x, screen_y)
+        else:
+            # 沒有圖片時使用原本的幾何圖形
+            self._render_with_geometry(screen, screen_x, screen_y)
+
+        # 繪製移動方向指示器
+        self._draw_direction_indicator(screen, screen_x, screen_y)
+
+        # 繪製移動路徑（半透明線條）
+        self._draw_movement_path(screen, camera_y)
+
+    def _render_with_tiles(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用 tile 圖片繪製移動平台\n
+        \n
+        根據平台寬度拼接左中右 tile 圖片\n
+        """
+        tile_width = self.tile_size[0]
+        
+        # 計算需要多少個中間 tile
+        remaining_width = self.width - (tile_width * 2)  # 扣除左右兩個 tile
+        middle_tiles_count = max(0, int(remaining_width / tile_width))
+        
+        current_x = screen_x
+        
+        # 繪製左側 tile
+        screen.blit(self.tile_left, (current_x, screen_y))
+        current_x += tile_width
+        
+        # 繪製中間 tile（重複拼接）
+        for i in range(middle_tiles_count):
+            screen.blit(self.tile_middle, (current_x, screen_y))
+            current_x += tile_width
+        
+        # 如果還有剩餘空間，繪製部分中間 tile
+        remaining_space = self.width - (current_x - screen_x) - tile_width
+        if remaining_space > 0:
+            # 裁切中間 tile 來填補剩餘空間
+            partial_tile = pygame.Surface((int(remaining_space), self.tile_size[1]), pygame.SRCALPHA)
+            partial_tile.blit(self.tile_middle, (0, 0), (0, 0, int(remaining_space), self.tile_size[1]))
+            screen.blit(partial_tile, (current_x, screen_y))
+            current_x += remaining_space
+        
+        # 繪製右側 tile
+        if current_x < screen_x + self.width:
+            screen.blit(self.tile_right, (screen_x + self.width - tile_width, screen_y))
+
+    def _render_with_geometry(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用幾何圖形繪製移動平台（當圖片載入失敗時的備用方案）\n
+        \n
+        繪製簡單的移動平台，保持原本的移動平台風格\n
+        """
         # 選擇顏色（移動時顏色略有不同）
         is_moving = self.velocity_x != 0 or self.velocity_y != 0
         color = self.moving_color if is_moving else self.platform_color
@@ -237,12 +333,6 @@ class MovingPlatform(BaseTrap):
 
         # 繪製邊框
         pygame.draw.rect(screen, self.border_color, platform_rect, 3)
-
-        # 繪製移動方向指示器
-        self._draw_direction_indicator(screen, screen_x, screen_y)
-
-        # 繪製移動路徑（半透明線條）
-        self._draw_movement_path(screen, camera_y)
 
     def _draw_direction_indicator(
         self, screen: pygame.Surface, screen_x: int, screen_y: int

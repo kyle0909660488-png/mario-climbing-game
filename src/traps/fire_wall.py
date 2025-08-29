@@ -2,6 +2,7 @@
 import pygame
 import math
 import random
+import os
 from typing import Tuple, List
 from src.traps.base_trap import BaseTrap
 
@@ -67,6 +68,9 @@ class FireWall(BaseTrap):
 
         # 初始化火焰粒子
         self._initialize_particles()
+        
+        # 載入火焰牆圖片
+        self._load_fire_image()
 
     def _initialize_particles(self):
         """
@@ -88,6 +92,36 @@ class FireWall(BaseTrap):
                 "color_index": random.randint(0, 2),
             }
             self.flame_particles.append(particle)
+
+    def _load_fire_image(self):
+        """
+        載入火焰牆的 tile 圖片\n
+        \n
+        載入 tile_0127.png 作為火焰牆基底圖片，並根據火焰區域大小調整\n
+        """
+        try:
+            # 載入火焰牆 tile 圖片
+            assets_path = "assets/images/"
+            self.fire_image = pygame.image.load(os.path.join(assets_path, "tile_0127.png")).convert_alpha()
+            
+            # 取得原始尺寸
+            original_size = self.fire_image.get_size()
+            self.tile_size = original_size
+            
+            # 計算需要多少個 tile 來填滿整個火焰區域
+            tiles_x = max(1, int(self.width / original_size[0]) + (1 if self.width % original_size[0] > 0 else 0))
+            tiles_y = max(1, int(self.height / original_size[1]) + (1 if self.height % original_size[1] > 0 else 0))
+            
+            self.tiles_x = tiles_x
+            self.tiles_y = tiles_y
+            
+        except pygame.error as e:
+            print(f"無法載入火焰牆圖片: {e}")
+            # 如果載入失敗，設定為 None，改用幾何圖形
+            self.fire_image = None
+            self.tile_size = (32, 32)  # 預設大小
+            self.tiles_x = 1
+            self.tiles_y = 1
 
     def update(self):
         """
@@ -162,7 +196,7 @@ class FireWall(BaseTrap):
         """
         繪製火焰牆\n
         \n
-        繪製動態的火焰效果和粒子\n
+        繪製動態的火焰效果和粒子，使用 tile_0127.png 作為基底\n
         \n
         參數:\n
         screen (pygame.Surface): 螢幕表面\n
@@ -172,21 +206,88 @@ class FireWall(BaseTrap):
             return
 
         # 計算螢幕座標
-        screen_y = self.y - camera_y + screen.get_height() // 2
+        screen_x = int(self.x)
+        screen_y = int(self.y - camera_y + screen.get_height() // 2)
 
-        # 繪製火焰基座（深紅色）
-        base_rect = pygame.Rect(self.x, screen_y + self.height - 10, self.width, 10)
-        pygame.draw.rect(screen, (100, 0, 0), base_rect)
+        # 如果有載入 tile 圖片，使用 tile 作為基底繪製
+        if self.fire_image:
+            self._render_with_tiles(screen, screen_x, screen_y)
+        else:
+            # 沒有圖片時使用原本的幾何圖形
+            self._render_with_geometry(screen, screen_x, screen_y)
 
-        # 繪製火焰粒子
+        # 繪製火焰粒子（在基底圖片上方）
         self._render_flame_particles(screen, camera_y)
-
-        # 繪製火焰主體（半透明效果）
-        self._render_flame_body(screen, screen_y)
 
         # 觸發時的特殊效果
         if self.flash_timer > 0:
             self._render_trigger_effect(screen, screen_y)
+
+    def _render_with_tiles(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用 tile 圖片繪製火焰牆基底\n
+        \n
+        根據火焰區域大小重複繪製 tile_0127.png\n
+        """
+        tile_width, tile_height = self.tile_size
+        
+        # 根據火焰強度和觸發狀態調整圖片效果
+        fire_image = self.fire_image
+        
+        # 根據火焰強度調整圖片顏色
+        if self.fire_intensity == "high":
+            # 高強度時圖片更亮
+            brightness_overlay = pygame.Surface(self.tile_size, pygame.SRCALPHA)
+            brightness_overlay.fill((255, 255, 255, 30))
+            fire_image = self.fire_image.copy()
+            fire_image.blit(brightness_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        elif self.fire_intensity == "low":
+            # 低強度時圖片較暗
+            darkness_overlay = pygame.Surface(self.tile_size, pygame.SRCALPHA)
+            darkness_overlay.fill((0, 0, 0, 50))
+            fire_image = self.fire_image.copy()
+            fire_image.blit(darkness_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        
+        if self.flash_timer > 0:
+            # 觸發時增加紅色光暈
+            intensity = self.flash_timer / 20.0
+            red_overlay = pygame.Surface(self.tile_size, pygame.SRCALPHA)
+            red_overlay.fill((255, 100, 0, int(80 * intensity)))
+            if fire_image == self.fire_image:
+                fire_image = self.fire_image.copy()
+            fire_image.blit(red_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        
+        # 重複繪製 tile 來填滿整個火焰區域
+        for tile_y in range(self.tiles_y):
+            for tile_x in range(self.tiles_x):
+                draw_x = screen_x + tile_x * tile_width
+                draw_y = screen_y + tile_y * tile_height
+                
+                # 確保不超出火焰區域邊界
+                clip_width = min(tile_width, self.width - tile_x * tile_width)
+                clip_height = min(tile_height, self.height - tile_y * tile_height)
+                
+                if clip_width > 0 and clip_height > 0:
+                    # 如果需要裁切，創建裁切後的圖片
+                    if clip_width < tile_width or clip_height < tile_height:
+                        clipped_tile = pygame.Surface((clip_width, clip_height), pygame.SRCALPHA)
+                        clipped_tile.blit(fire_image, (0, 0), (0, 0, clip_width, clip_height))
+                        screen.blit(clipped_tile, (draw_x, draw_y))
+                    else:
+                        screen.blit(fire_image, (draw_x, draw_y))
+
+    def _render_with_geometry(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用幾何圖形繪製火焰牆（當圖片載入失敗時的備用方案）\n
+        \n
+        繪製原本的火焰基座和主體\n
+        """
+        # 繪製火焰基座（深紅色）
+        base_rect = pygame.Rect(screen_x, screen_y + self.height - 10, self.width, 10)
+        pygame.draw.rect(screen, (100, 0, 0), base_rect)
+
+        # 繪製火焰主體（半透明效果）
+        self._render_flame_body(screen, screen_y)
 
     def _render_flame_particles(self, screen: pygame.Surface, camera_y: float):
         """
@@ -226,7 +327,7 @@ class FireWall(BaseTrap):
         """
         繪製火焰主體\n
         \n
-        用漸層色彩繪製火焰的主要形狀\n
+        用漸層色彩繪製火焰的主要形狀（僅在沒有圖片時使用）\n
         """
         colors = self.base_colors[self.fire_intensity]
 
@@ -263,8 +364,8 @@ class FireWall(BaseTrap):
         # 繪製外圍光暈
         for radius in [15, 10, 5]:
             alpha = int(100 * intensity * (15 - radius) / 15)
+            # 這裡簡化處理，用多個橢圓疊加營造光暈效果
             if alpha > 0:
-                # 這裡簡化處理，用多個橢圓疊加營造光暈效果
                 halo_rect = pygame.Rect(
                     self.x - radius,
                     screen_y - radius,

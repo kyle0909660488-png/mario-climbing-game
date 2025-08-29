@@ -1,6 +1,7 @@
 ######################載入套件######################
 import pygame
 from typing import Tuple
+import os
 
 
 ######################平台類別######################
@@ -64,6 +65,9 @@ class Platform:
         # 狀態屬性
         self.is_active = True
         self.damage_level = 0  # 損壞程度（0-100）
+
+        # 載入平台圖片
+        self._load_platform_images()
 
     def _get_platform_color(self) -> Tuple[int, int, int]:
         """
@@ -133,6 +137,43 @@ class Platform:
         }
         return bounce_map.get(self.platform_type, 1.0)
 
+    def _load_platform_images(self):
+        """
+        載入平台的 tile 圖片\n
+        \n
+        載入左中右三個部分的 tile 圖片，用於拼接不同大小的平台\n
+        """
+        try:
+            # 載入平台的左中右 tile 圖片
+            assets_path = "assets/images/"
+            self.tile_left = pygame.image.load(os.path.join(assets_path, "tile_0103.png")).convert_alpha()
+            self.tile_middle = pygame.image.load(os.path.join(assets_path, "tile_0104.png")).convert_alpha()
+            self.tile_right = pygame.image.load(os.path.join(assets_path, "tile_0106.png")).convert_alpha()
+            
+            # 取得 tile 的原始尺寸
+            self.tile_size = self.tile_left.get_size()
+            
+            # 根據平台高度調整 tile 大小
+            if self.height != self.tile_size[1]:
+                scale_ratio = self.height / self.tile_size[1]
+                new_width = int(self.tile_size[0] * scale_ratio)
+                new_height = int(self.height)
+                
+                self.tile_left = pygame.transform.scale(self.tile_left, (new_width, new_height))
+                self.tile_middle = pygame.transform.scale(self.tile_middle, (new_width, new_height))
+                self.tile_right = pygame.transform.scale(self.tile_right, (new_width, new_height))
+                
+                # 更新 tile 尺寸
+                self.tile_size = (new_width, new_height)
+            
+        except pygame.error as e:
+            print(f"無法載入平台圖片: {e}")
+            # 如果載入失敗，設定為 None，改用幾何圖形
+            self.tile_left = None
+            self.tile_middle = None
+            self.tile_right = None
+            self.tile_size = (32, 32)  # 預設大小
+
     def get_collision_rect(self) -> pygame.Rect:
         """
         取得平台的碰撞矩形\n
@@ -190,7 +231,7 @@ class Platform:
         """
         繪製平台\n
         \n
-        在螢幕上繪製平台，包括基本形狀和特殊效果\n
+        在螢幕上繪製平台，使用 tile 圖片拼接成所需大小\n
         \n
         參數:\n
         screen (pygame.Surface): 要繪製到的螢幕表面\n
@@ -212,22 +253,84 @@ class Platform:
         ):
             return
 
+        # 如果有載入 tile 圖片，使用 tile 繪製
+        if self.tile_left and self.tile_middle and self.tile_right:
+            self._render_with_tiles(screen, screen_x, screen_y)
+        else:
+            # 沒有圖片時使用原本的幾何圖形
+            self._render_with_geometry(screen, screen_x, screen_y)
+
+        # 繪製特殊效果
+        self._draw_special_effects(screen, screen_x, screen_y)
+
+    def _render_with_tiles(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用 tile 圖片繪製平台\n
+        \n
+        根據平台寬度拼接左中右 tile 圖片\n
+        """
+        tile_width = self.tile_size[0]
+        
+        # 計算需要多少個中間 tile
+        remaining_width = self.width - (tile_width * 2)  # 扣除左右兩個 tile
+        middle_tiles_count = max(0, int(remaining_width / tile_width))
+        
+        current_x = screen_x
+        
+        # 繪製左側 tile
+        screen.blit(self.tile_left, (current_x, screen_y))
+        current_x += tile_width
+        
+        # 繪製中間 tile（重複拼接）
+        for i in range(middle_tiles_count):
+            screen.blit(self.tile_middle, (current_x, screen_y))
+            current_x += tile_width
+        
+        # 如果還有剩餘空間，繪製部分中間 tile
+        remaining_space = self.width - (current_x - screen_x) - tile_width
+        if remaining_space > 0:
+            # 裁切中間 tile 來填補剩餘空間
+            partial_tile = pygame.Surface((int(remaining_space), self.tile_size[1]), pygame.SRCALPHA)
+            partial_tile.blit(self.tile_middle, (0, 0), (0, 0, int(remaining_space), self.tile_size[1]))
+            screen.blit(partial_tile, (current_x, screen_y))
+            current_x += remaining_space
+        
+        # 繪製右側 tile
+        if current_x < screen_x + self.width:
+            screen.blit(self.tile_right, (screen_x + self.width - tile_width, screen_y))
+
+    def _render_with_geometry(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用幾何圖形繪製平台（當圖片載入失敗時的備用方案）\n
+        \n
+        繪製簡單的矩形平台，改用地面色彩 tile_0000 的風格\n
+        """
         # 根據損壞程度調整顏色
-        render_color = self.color
+        # 使用類似 tile_0000 的地面色彩（土褐色）
+        base_color = (101, 67, 33)  # 深褐色（土地色）
+        render_color = base_color
+        
         if self.platform_type == "fragile" and self.damage_level > 0:
             # 損壞的平台顏色變暗
             damage_ratio = self.damage_level / self.durability
-            render_color = tuple(int(c * (1 - damage_ratio * 0.5)) for c in self.color)
+            render_color = tuple(int(c * (1 - damage_ratio * 0.5)) for c in base_color)
 
-        # 繪製平台主體
+        # 繪製平台主體（土地紋理效果）
         platform_rect = pygame.Rect(screen_x, screen_y, self.width, self.height)
         pygame.draw.rect(screen, render_color, platform_rect)
 
         # 繪製平台邊框
-        pygame.draw.rect(screen, self.border_color, platform_rect, 2)
+        pygame.draw.rect(screen, (139, 69, 19), platform_rect, 2)
 
-        # 繪製特殊效果
-        self._draw_special_effects(screen, screen_x, screen_y)
+        # 繪製土地紋理線條
+        for i in range(0, int(self.width), 8):
+            pygame.draw.line(
+                screen,
+                (139, 69, 19),  # 稍亮的土色
+                (screen_x + i, screen_y + 2),
+                (screen_x + i, screen_y + self.height - 2),
+                1,
+            )
 
     def _draw_special_effects(
         self, screen: pygame.Surface, screen_x: int, screen_y: int

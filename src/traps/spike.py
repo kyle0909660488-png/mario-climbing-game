@@ -1,6 +1,7 @@
 ######################載入套件######################
 import pygame
 import math
+import os
 from typing import Tuple
 from src.traps.base_trap import BaseTrap
 
@@ -56,6 +57,9 @@ class Spike(BaseTrap):
 
         # 計算尖刺的幾何形狀
         self.spike_points = self._calculate_spike_geometry()
+        
+        # 載入尖刺圖片
+        self._load_spike_image()
 
     def _get_spike_direction(self) -> Tuple[int, int]:
         """
@@ -114,6 +118,37 @@ class Spike(BaseTrap):
 
         return spikes
 
+    def _load_spike_image(self):
+        """
+        載入尖刺的 tile 圖片\n
+        \n
+        載入 tile_0068.png 作為尖刺圖片，並根據尖刺區域大小調整\n
+        """
+        try:
+            # 載入尖刺 tile 圖片
+            assets_path = "assets/images/"
+            self.spike_image = pygame.image.load(os.path.join(assets_path, "tile_0068.png")).convert_alpha()
+            
+            # 取得原始尺寸
+            original_size = self.spike_image.get_size()
+            self.tile_size = original_size
+            
+            # 如果尖刺區域尺寸和圖片不同，需要調整
+            # 計算需要多少個 tile 來填滿整個尖刺區域
+            tiles_x = max(1, int(self.width / original_size[0]) + (1 if self.width % original_size[0] > 0 else 0))
+            tiles_y = max(1, int(self.height / original_size[1]) + (1 if self.height % original_size[1] > 0 else 0))
+            
+            self.tiles_x = tiles_x
+            self.tiles_y = tiles_y
+            
+        except pygame.error as e:
+            print(f"無法載入尖刺圖片: {e}")
+            # 如果載入失敗，設定為 None，改用幾何圖形
+            self.spike_image = None
+            self.tile_size = (32, 32)  # 預設大小
+            self.tiles_x = 1
+            self.tiles_y = 1
+
     def update(self):
         """
         更新尖刺狀態\n
@@ -128,7 +163,7 @@ class Spike(BaseTrap):
         """
         繪製尖刺陷阱\n
         \n
-        繪製尖銳的三角形尖刺和基座\n
+        繪製尖銳的尖刺，使用 tile_0068.png 圖片\n
         \n
         參數:\n
         screen (pygame.Surface): 螢幕表面\n
@@ -138,8 +173,64 @@ class Spike(BaseTrap):
             return
 
         # 計算螢幕座標
-        screen_y = self.y - camera_y + screen.get_height() // 2
+        screen_x = int(self.x)
+        screen_y = int(self.y - camera_y + screen.get_height() // 2)
 
+        # 如果有載入 tile 圖片，使用 tile 繪製
+        if self.spike_image:
+            self._render_with_tiles(screen, screen_x, screen_y)
+        else:
+            # 沒有圖片時使用原本的幾何圖形
+            self._render_with_geometry(screen, screen_x, screen_y)
+
+        # 如果陷阱處於冷卻狀態，繪製冷卻指示
+        if self.trigger_cooldown > 0:
+            self._draw_cooldown_indicator(screen, screen_y)
+
+    def _render_with_tiles(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用 tile 圖片繪製尖刺\n
+        \n
+        根據尖刺區域大小重複繪製 tile_0068.png\n
+        """
+        tile_width, tile_height = self.tile_size
+        
+        # 根據觸發狀態調整圖片顏色
+        spike_image = self.spike_image
+        if self.flash_timer > 0:
+            # 觸發時變紅色
+            intensity = self.flash_timer / 20.0
+            red_overlay = pygame.Surface(self.tile_size, pygame.SRCALPHA)
+            red_overlay.fill((255, 0, 0, int(100 * intensity)))
+            
+            spike_image = self.spike_image.copy()
+            spike_image.blit(red_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_MULT)
+        
+        # 重複繪製 tile 來填滿整個尖刺區域
+        for tile_y in range(self.tiles_y):
+            for tile_x in range(self.tiles_x):
+                draw_x = screen_x + tile_x * tile_width
+                draw_y = screen_y + tile_y * tile_height
+                
+                # 確保不超出尖刺區域邊界
+                clip_width = min(tile_width, self.width - tile_x * tile_width)
+                clip_height = min(tile_height, self.height - tile_y * tile_height)
+                
+                if clip_width > 0 and clip_height > 0:
+                    # 如果需要裁切，創建裁切後的圖片
+                    if clip_width < tile_width or clip_height < tile_height:
+                        clipped_tile = pygame.Surface((clip_width, clip_height), pygame.SRCALPHA)
+                        clipped_tile.blit(spike_image, (0, 0), (0, 0, clip_width, clip_height))
+                        screen.blit(clipped_tile, (draw_x, draw_y))
+                    else:
+                        screen.blit(spike_image, (draw_x, draw_y))
+
+    def _render_with_geometry(self, screen: pygame.Surface, screen_x: int, screen_y: int):
+        """
+        使用幾何圖形繪製尖刺（當圖片載入失敗時的備用方案）\n
+        \n
+        繪製原本的三角形尖刺\n
+        """
         # 根據觸發狀態調整顏色
         spike_color = self.spike_color
         tip_color = self.spike_tip_color
@@ -156,10 +247,10 @@ class Spike(BaseTrap):
 
         # 先繪製基座
         if self.spike_type == "ground":
-            base_rect = pygame.Rect(self.x, screen_y + self.height - 5, self.width, 5)
+            base_rect = pygame.Rect(screen_x, screen_y + self.height - 5, self.width, 5)
             pygame.draw.rect(screen, self.base_color, base_rect)
         elif self.spike_type == "ceiling":
-            base_rect = pygame.Rect(self.x, screen_y, self.width, 5)
+            base_rect = pygame.Rect(screen_x, screen_y, self.width, 5)
             pygame.draw.rect(screen, self.base_color, base_rect)
 
         # 繪製所有尖刺三角形
@@ -181,10 +272,6 @@ class Spike(BaseTrap):
             pygame.draw.circle(
                 screen, tip_color, (int(tip_point[0]), int(tip_point[1])), 3
             )
-
-        # 如果陷阱處於冷卻狀態，繪製冷卻指示
-        if self.trigger_cooldown > 0:
-            self._draw_cooldown_indicator(screen, screen_y)
 
     def _draw_cooldown_indicator(self, screen: pygame.Surface, screen_y: float):
         """
