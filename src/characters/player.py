@@ -127,6 +127,10 @@ class Player:
         # 投射物類型切換
         self.projectile_type = "fireball"  # 預設為火焰球，可選 "fireball" 或 "iceball"
 
+        # 圖片快取系統 - 避免每幀重複載入
+        self.image_cache = {}
+        self._load_character_images()
+
         # 無敵時間（受傷後短暫無法再受傷）
         self.invulnerability_time = 0
 
@@ -263,6 +267,30 @@ class Player:
                 self.projectile_type = "fireball"
 
         self.previous_switch_key_pressed = switch_key_pressed
+
+    def _load_character_images(self):
+        """
+        預載入角色圖片到快取中\n
+        \n
+        避免每幀重複載入圖片，提升遊戲效能\n
+        """
+        image_files = {
+            "default": "assets/images/角色1.png",
+            "fireball": "assets/images/火套裝.png", 
+            "iceball": "assets/images/冰套裝.png"
+        }
+        
+        for key, file_path in image_files.items():
+            try:
+                image = pygame.image.load(file_path).convert_alpha()
+                # 預先縮放到不同尺寸以備使用
+                self.image_cache[key] = {
+                    "normal": pygame.transform.scale(image, (self.width, self.height)),
+                    "crouched": pygame.transform.scale(image, (self.width, self.height // 2))
+                }
+            except (pygame.error, FileNotFoundError) as e:
+                print(f"無法載入角色圖片 {file_path}: {e}")
+                self.image_cache[key] = None
 
     def _try_jump(self):
         """
@@ -832,9 +860,37 @@ class Player:
         if self.is_sprinting:
             color = tuple(min(255, c + 50) for c in color)  # 每個顏色通道增加亮度
 
-        # 繪製角色矩形（蹲下時高度縮小）
+        # 繪製角色圖片（使用快取避免重複載入）
         height = self.height if not self.is_crouching else self.height // 2
-        pygame.draw.rect(screen, color, (screen_x, screen_y, self.width, height))
+        height_key = "normal" if not self.is_crouching else "crouched"
+        
+        # 根據投射物類型選擇對應的圖片
+        character_image = None
+        image_key = "default"  # 預設值
+        
+        if hasattr(self, 'projectile_type'):
+            if self.projectile_type == "fireball":
+                image_key = "fireball"
+            elif self.projectile_type == "iceball":
+                image_key = "iceball"
+        
+        # 從快取中獲取圖片
+        if hasattr(self, 'image_cache') and self.image_cache.get(image_key):
+            character_image = self.image_cache[image_key][height_key]
+        
+        if character_image:
+            # 處理受傷閃爍效果
+            if self.invulnerability_time > 0 and (self.invulnerability_time // 5) % 2:
+                # 創建一個半透明的表面
+                alpha_surface = pygame.Surface((self.width, height), pygame.SRCALPHA)
+                alpha_surface.set_alpha(128)  # 50% 透明
+                alpha_surface.blit(character_image, (0, 0))
+                screen.blit(alpha_surface, (screen_x, screen_y))
+            else:
+                screen.blit(character_image, (screen_x, screen_y))
+        else:
+            # 如果沒有快取圖片，使用原本的矩形
+            pygame.draw.rect(screen, color, (screen_x, screen_y, self.width, height))
 
         # 繪製角色邊框（加速時邊框變粗）
         border_width = 3 if self.is_sprinting else 2

@@ -88,6 +88,38 @@ class Boss(BaseEnemy):
         self.movement_timer = 0
         self.movement_pattern = "patrol"  # patrol, chase, retreat, cast
 
+        # Boss圖片快取系統
+        self.boss_image_cache = self._load_boss_images()
+
+    def _load_boss_images(self):
+        """
+        載入Boss各階段圖片到快取\n
+        \n
+        回傳:\n
+        dict: 包含各階段原始和翻轉版本的圖片快取\n
+        """
+        boss_files = {
+            1: "assets/images/boss.png",
+            2: "assets/images/boss2.png", 
+            3: "assets/images/boss3.png"
+        }
+        
+        cache = {}
+        for phase, file_path in boss_files.items():
+            try:
+                boss_image = pygame.image.load(file_path).convert_alpha()
+                boss_image = pygame.transform.scale(boss_image, (self.width, self.height))
+                
+                cache[phase] = {
+                    "normal": boss_image,
+                    "flipped": pygame.transform.flip(boss_image, True, False)
+                }
+            except (pygame.error, FileNotFoundError) as e:
+                print(f"無法載入Boss圖片 {file_path}: {e}")
+                cache[phase] = None
+        
+        return cache
+
     def update(self, player, platforms=None):
         """
         更新 Boss 狀態\n
@@ -565,26 +597,44 @@ class Boss(BaseEnemy):
         # 繪製技能效果
         self._draw_skill_effects(screen, camera_x, camera_y)
 
-        # 繪製 Boss 主體（比普通敵人大）
-        boss_color = self.boss_color
+        # 繪製 Boss 主體（使用快取圖片）
+        if hasattr(self, 'boss_image_cache') and self.boss_image_cache.get(self.phase):
+            # 選擇正確的圖片方向
+            if hasattr(self, 'facing_direction') and self.facing_direction == -1:
+                boss_image = self.boss_image_cache[self.phase]["flipped"].copy()
+            else:
+                boss_image = self.boss_image_cache[self.phase]["normal"].copy()
+            
+            # 施法時的視覺效果
+            if self.is_casting_skill:
+                flash_intensity = abs(math.sin(pygame.time.get_ticks() * 0.02)) * 100
+                flash_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                flash_surface.fill((int(flash_intensity), int(flash_intensity), int(flash_intensity), 50))
+                boss_image.blit(flash_surface, (0, 0))
+            
+            # 繪製Boss圖片
+            screen.blit(boss_image, (screen_x, screen_y))
+        else:
+            # 如果沒有快取圖片，使用原本的矩形繪製
+            boss_color = self.boss_color
+            
+            # 施法時的視覺效果
+            if self.is_casting_skill:
+                # 閃爍效果
+                flash_intensity = abs(math.sin(pygame.time.get_ticks() * 0.02)) * 100
+                boss_color = tuple(min(255, c + flash_intensity) for c in boss_color)
 
-        # 施法時的視覺效果
-        if self.is_casting_skill:
-            # 閃爍效果
-            flash_intensity = abs(math.sin(pygame.time.get_ticks() * 0.02)) * 100
-            boss_color = tuple(min(255, c + flash_intensity) for c in boss_color)
+            # 繪製 Boss 外框（更粗的邊框）
+            pygame.draw.rect(
+                screen,
+                (255, 255, 255),
+                (screen_x - 2, screen_y - 2, self.width + 4, self.height + 4),
+            )
 
-        # 繪製 Boss 外框（更粗的邊框）
-        pygame.draw.rect(
-            screen,
-            (255, 255, 255),
-            (screen_x - 2, screen_y - 2, self.width + 4, self.height + 4),
-        )
-
-        # 繪製 Boss 主體
-        pygame.draw.rect(
-            screen, boss_color, (screen_x, screen_y, self.width, self.height)
-        )
+            # 繪製 Boss 主體
+            pygame.draw.rect(
+                screen, boss_color, (screen_x, screen_y, self.width, self.height)
+            )
 
         # 繪製階段標記
         self._draw_phase_indicators(screen, screen_x, screen_y)

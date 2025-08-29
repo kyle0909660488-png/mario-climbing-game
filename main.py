@@ -1,6 +1,9 @@
 ######################載入套件######################
 import pygame
 import sys
+import time
+import psutil
+import os
 from typing import Dict, List, Tuple
 from src.characters.player import Player
 from src.levels.level_manager import LevelManager
@@ -26,6 +29,134 @@ RED = (200, 0, 0)
 # 物理設定
 GRAVITY = 0.8
 MAX_FALL_SPEED = 15
+
+######################效能監控工具######################
+
+class GamePerformanceMonitor:
+    """
+    遊戲內建效能監控器\n
+    \n
+    監控 FPS 和記憶體使用，幫助發現效能問題\n
+    按 F12 開啟/關閉效能顯示\n
+    """
+    
+    def __init__(self):
+        """初始化效能監控器"""
+        self.fps_history = []  # FPS 歷史記錄
+        self.memory_history = []  # 記憶體使用歷史
+        self.show_performance = False  # 是否顯示效能資訊
+        
+        # pygame 時鐘物件
+        self.clock = pygame.time.Clock()
+        
+        # 系統程序資訊
+        self.process = psutil.Process(os.getpid())
+        
+        # 效能警告
+        self.low_fps_warning = False
+        self.high_memory_warning = False
+        
+    def update(self):
+        """
+        更新效能資料\n
+        \n
+        每幀呼叫一次，收集當前的 FPS 和記憶體資料\n
+        """
+        # 記錄當前 FPS
+        current_fps = self.clock.get_fps()
+        self.fps_history.append(current_fps)
+        
+        # 記錄記憶體使用量（MB）
+        memory_usage = self.process.memory_info().rss / 1024 / 1024
+        self.memory_history.append(memory_usage)
+        
+        # 只保留最近 180 幀的資料（3 秒的歷史）
+        if len(self.fps_history) > 180:
+            self.fps_history.pop(0)
+            self.memory_history.pop(0)
+            
+        # 檢查效能警告
+        if len(self.fps_history) >= 60:  # 至少有 1 秒的資料
+            recent_fps = self.fps_history[-60:]  # 最近 1 秒
+            avg_recent_fps = sum(recent_fps) / len(recent_fps)
+            
+            # FPS 低於 45 就警告
+            self.low_fps_warning = avg_recent_fps < 45
+            
+            # 記憶體使用超過 200MB 就警告
+            self.high_memory_warning = memory_usage > 200
+            
+    def toggle_display(self):
+        """切換效能顯示開關"""
+        self.show_performance = not self.show_performance
+        
+    def draw_performance_overlay(self, screen):
+        """
+        在螢幕上畫出效能資訊\n
+        \n
+        參數:\n
+        screen (pygame.Surface): 遊戲畫面，用來畫出效能資訊\n
+        """
+        if not self.show_performance or not self.fps_history:
+            return
+            
+        # 準備要顯示的資訊
+        current_fps = self.fps_history[-1] if self.fps_history else 0
+        current_memory = self.memory_history[-1] if self.memory_history else 0
+        
+        # 計算平均 FPS（最近 3 秒）
+        avg_fps = sum(self.fps_history) / len(self.fps_history)
+        
+        # 建立半透明背景
+        overlay_height = 100 if (self.low_fps_warning or self.high_memory_warning) else 80
+        overlay = pygame.Surface((250, overlay_height))
+        overlay.set_alpha(180)  # 半透明
+        overlay.fill((0, 0, 0))  # 黑色背景
+        
+        # 準備字體（使用系統預設字體）
+        font = pygame.font.Font(None, 20)
+        
+        # 準備要顯示的文字
+        fps_text = f"FPS: {current_fps:.1f} (平均: {avg_fps:.1f})"
+        memory_text = f"記憶體: {current_memory:.1f}MB"
+        
+        # 根據 FPS 選擇顏色
+        if current_fps >= 55:
+            fps_color = (0, 255, 0)  # 綠色 - 良好
+        elif current_fps >= 45:
+            fps_color = (255, 255, 0)  # 黃色 - 普通
+        else:
+            fps_color = (255, 0, 0)  # 紅色 - 有問題
+            
+        # 畫出文字
+        fps_surface = font.render(fps_text, True, fps_color)
+        memory_surface = font.render(memory_text, True, (255, 255, 255))
+        
+        # 把文字畫到背景上
+        overlay.blit(fps_surface, (10, 10))
+        overlay.blit(memory_surface, (10, 30))
+        
+        # 顯示警告訊息
+        y_offset = 50
+        if self.low_fps_warning:
+            warning_text = font.render("⚠️ FPS 偏低", True, (255, 100, 100))
+            overlay.blit(warning_text, (10, y_offset))
+            y_offset += 20
+            
+        if self.high_memory_warning:
+            warning_text = font.render("⚠️ 記憶體偏高", True, (255, 100, 100))
+            overlay.blit(warning_text, (10, y_offset))
+        
+        # 把整個資訊框畫到螢幕右上角
+        screen.blit(overlay, (screen.get_width() - 260, 10))
+        
+        # 在左下角顯示提示
+        hint_text = font.render("按 F12 隱藏效能資訊", True, (150, 150, 150))
+        screen.blit(hint_text, (10, screen.get_height() - 25))
+        
+    def tick(self, fps):
+        """等待下一幀（替代 pygame.time.Clock.tick）"""
+        return self.clock.tick(fps)
 
 
 ######################主要遊戲類別######################
@@ -66,8 +197,9 @@ class MarioClimbingGame:
         self.screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("瑪莉歐攀爬遊戲")
 
-        # 時鐘物件用來控制遊戲幀率
+        # 時鐘和效能監控
         self.clock = pygame.time.Clock()
+        self.performance_monitor = GamePerformanceMonitor()
 
         # 遊戲狀態控制
         self.running = True
@@ -147,6 +279,11 @@ class MarioClimbingGame:
                         print(
                             "測試藥水已掉落！治療藥水(左)、護盾藥水(中)、攻擊藥水(右)"
                         )
+                    continue
+
+                # F12 鍵切換效能顯示
+                elif event.key == pygame.K_F12:
+                    self.performance_monitor.toggle_display()
                     continue
 
                 # 1鍵使用攻擊藥水
@@ -330,6 +467,9 @@ class MarioClimbingGame:
         4. 裝備效果更新\n
         5. UI 資訊更新\n
         """
+        # 更新效能監控資料
+        self.performance_monitor.update()
+        
         if self.game_state == "playing" and self.player:
             # 取得當前按住的按鍵狀態
             keys = pygame.key.get_pressed()
@@ -626,6 +766,9 @@ class MarioClimbingGame:
             # 繪製勝利畫面
             self.ui.draw_victory_screen(self.screen)
 
+        # 繪製效能監控資訊（在所有內容之上）
+        self.performance_monitor.draw_performance_overlay(self.screen)
+
         # 更新顯示（把準備好的畫面顯示到螢幕）
         pygame.display.flip()
 
@@ -652,7 +795,7 @@ class MarioClimbingGame:
             self.render()
 
             # 4. 限制幀率，確保遊戲穩定運行
-            self.clock.tick(FPS)
+            self.performance_monitor.tick(FPS)
 
         # 遊戲結束後清理資源
         pygame.quit()

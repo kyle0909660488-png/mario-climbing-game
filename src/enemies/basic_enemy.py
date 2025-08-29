@@ -54,6 +54,28 @@ class BasicEnemy(BaseEnemy):
         self.attack_windup = 0  # 攻擊前搖時間
         self.attack_active = 0  # 攻擊判定持續時間
 
+        # 圖片快取 - 避免每幀重複載入
+        self.enemy_image_cache = self._load_enemy_image()
+
+    def _load_enemy_image(self):
+        """
+        載入敵人圖片到快取\n
+        \n
+        回傳:\n
+        dict: 包含原始和翻轉版本的圖片快取\n
+        """
+        try:
+            enemy_image = pygame.image.load("assets/images/角色2圖片1.png").convert_alpha()
+            enemy_image = pygame.transform.scale(enemy_image, (self.width, self.height))
+            
+            return {
+                "normal": enemy_image,
+                "flipped": pygame.transform.flip(enemy_image, True, False)
+            }
+        except (pygame.error, FileNotFoundError) as e:
+            print(f"無法載入敵人圖片: {e}")
+            return None
+
     def update_ai(self, player, platforms=None):
         """
         更新基本敵人的 AI 行為\n
@@ -296,9 +318,37 @@ class BasicEnemy(BaseEnemy):
             # 激進模式時顏色更深
             color = tuple(max(0, c - 30) for c in self.enemy_color)
 
-        # 繪製敵人主體
+        # 繪製敵人圖片（使用快取避免重複載入）
         enemy_rect = pygame.Rect(screen_x, screen_y, self.width, self.height)
-        pygame.draw.rect(screen, color, enemy_rect)
+        
+        if hasattr(self, 'enemy_image_cache') and self.enemy_image_cache:
+            # 選擇正確的圖片方向
+            if self.facing_direction == -1:  # 面向左時使用翻轉圖片
+                enemy_image = self.enemy_image_cache["flipped"].copy()
+            else:
+                enemy_image = self.enemy_image_cache["normal"].copy()
+            
+            # 處理各種視覺效果
+            if self.is_dead:
+                # 死亡時變暗
+                darken_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                darken_surface.fill((0, 0, 0, 150))  # 半透明黑色覆蓋
+                enemy_image.blit(darken_surface, (0, 0))
+            elif self.damage_flash_timer > 0 and (self.damage_flash_timer // 2) % 2:
+                # 受傷時變紅
+                flash_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                flash_surface.fill((255, 0, 0, 100))  # 半透明紅色覆蓋
+                enemy_image.blit(flash_surface, (0, 0))
+            elif self.aggressive_mode:
+                # 激進模式時變深
+                darken_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+                darken_surface.fill((50, 0, 0, 80))  # 半透明深紅色覆蓋
+                enemy_image.blit(darken_surface, (0, 0))
+            
+            screen.blit(enemy_image, (screen_x, screen_y))
+        else:
+            # 如果沒有快取圖片，使用原本的矩形繪製
+            pygame.draw.rect(screen, color, enemy_rect)
 
         # 繪製邊框
         border_color = (0, 0, 0) if not self.is_dead else (50, 50, 50)

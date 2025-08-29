@@ -84,6 +84,9 @@ class GameUI:
         self.animation_timer = 0
         self.pulse_effect = 0
 
+        # 角色選擇圖片快取
+        self.character_image_cache = self._load_character_selection_image()
+
         # 難度選項資訊
         self.difficulty_info = {
             "easy": {
@@ -165,6 +168,20 @@ class GameUI:
                 fonts[name] = pygame.font.Font(None, size)
 
         return fonts
+
+    def _load_character_selection_image(self):
+        """
+        載入角色選擇畫面的圖片\n
+        \n
+        回傳:\n
+        pygame.Surface: 快取的角色選擇圖片，載入失敗時回傳 None\n
+        """
+        try:
+            character_image = pygame.image.load("assets/images/角色1.png").convert_alpha()
+            return pygame.transform.scale(character_image, (80, 80))  # 預設預覽大小
+        except (pygame.error, FileNotFoundError) as e:
+            print(f"無法載入角色選擇圖片: {e}")
+            return None
 
     def update_animations(self):
         """
@@ -277,12 +294,20 @@ class GameUI:
         pygame.draw.rect(screen, card_color, card_rect)
         pygame.draw.rect(screen, border_color, card_rect, border_width)
 
-        # 角色預覽（簡單的彩色矩形）
+        # 角色預覽（使用快取圖片）
         preview_size = 80
         preview_x = x + (width - preview_size) // 2
         preview_y = y + 20
         preview_rect = pygame.Rect(preview_x, preview_y, preview_size, preview_size)
-        pygame.draw.rect(screen, character["color"], preview_rect)
+        
+        # 使用快取的角色圖片
+        if hasattr(self, 'character_image_cache') and self.character_image_cache:
+            screen.blit(self.character_image_cache, (preview_x, preview_y))
+        else:
+            # 如果沒有快取圖片，使用原本的彩色矩形
+            pygame.draw.rect(screen, character["color"], preview_rect)
+        
+        # 繪製邊框
         pygame.draw.rect(screen, (0, 0, 0), preview_rect, 3)
 
         # 角色名稱
