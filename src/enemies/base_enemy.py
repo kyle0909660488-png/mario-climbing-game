@@ -283,28 +283,8 @@ class BaseEnemy(ABC):
         if not self._is_standing_on_platform(platforms):
             self.is_on_ground = False
             self.standing_on_moving_platform = None  # 清除移動平台狀態
-            # 追蹤空中時間
-            if not hasattr(self, "air_time"):
-                self.air_time = 0
-            self.air_time += 1
-        else:
-            # 重置空中時間
-            if hasattr(self, "air_time"):
-                self.air_time = 0
 
-        # 死亡保護機制：根據不同情況設定觸發條件
-        # 1. 如果掉得太低（超過起始位置300像素或低於地面水平）
-        # 2. 如果在空中太久（可能卡在無限掉落循環）
-        if (
-            self.y > self.start_y + 300
-            or self.y > 800  # 一般地面高度
-            or (
-                not self.is_on_ground
-                and hasattr(self, "air_time")
-                and self.air_time > 300
-            )
-        ):
-            self._emergency_reset()
+
 
     def _apply_simple_physics(self):
         """
@@ -790,10 +770,6 @@ class BaseEnemy(ABC):
 
         # 重置巡邏方向，避免再次掉下
         self.patrol_direction = 1
-
-        # 重置空中時間
-        if hasattr(self, "air_time"):
-            self.air_time = 0
 
         # 稍微減少血量作為懲罰
         if self.health > 10:

@@ -275,18 +275,18 @@ class LevelManager:
         enemies = [
             # 地面多層防守線 - 避開玩家出生點 (50, 700)
             BasicEnemy(200, 630, patrol_range=100),  # 地面左側守衛，巡邏範圍 100-300
-            BasicEnemy(500, 630, patrol_range=120),  # 地面中央守衛，巡邏範圍 380-620
-            BasicEnemy(800, 630, patrol_range=150),  # 地面右側守衛，巡邏範圍 650-950
+            BasicEnemy(500, 730, patrol_range=120),  # 修正：放到地面平台上 (y=750-20=730)
+            BasicEnemy(800, 730, patrol_range=150),  # 修正：放到地面平台上 (y=750-20=730)
             # 平台守衛軍團
             BasicEnemy(500, 530, patrol_range=120),  # 增加巡邏範圍
-            BasicEnemy(250, 430, patrol_range=80),
-            BasicEnemy(150, 430, patrol_range=60),  # 新增平台敵人
-            BasicEnemy(700, 330, patrol_range=120),
-            BasicEnemy(800, 330, patrol_range=100),  # 新增平台敵人
+            BasicEnemy(250, 430, patrol_range=80),   # 修正：放到 Platform(150, 450) 上 (y=450-20=430)
+            BasicEnemy(200, 430, patrol_range=60),   # 修正：放到 Platform(150, 450) 上
+            BasicEnemy(700, 330, patrol_range=120),  # 修正：放到 Platform(600, 350) 上 (y=350-20=330)
+            BasicEnemy(750, 330, patrol_range=100),  # 修正：放到 Platform(600, 350) 上
             # 高處狙擊部隊
             BasicEnemy(750, 130, patrol_range=100),
-            BasicEnemy(250, 130, patrol_range=80),  # 新增狙擊手
-            BasicEnemy(800, 130, patrol_range=90),  # 新增狙擊手
+            BasicEnemy(275, 230, patrol_range=80),   # 修正：放到 Platform(200, 250) 上 (y=250-20=230)
+            BasicEnemy(800, 130, patrol_range=90),   # 新增狙擊手
         ]
 
         return Level(
