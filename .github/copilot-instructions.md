@@ -28,10 +28,16 @@ Main Game Loop (main.py):
 ├── LevelManager.update()                     # 關卡陷阱和敵人
 ├── EquipmentManager.update()                 # 套裝效果持續作用
 ├── FireballManager/IceballManager.update()  # 彈道物件管理
+├── PotionDropManager.update()               # 藥水掉落物管理
 └── GameUI.render()                          # UI 渲染
 
 Equipment Integration:
 Player → EquipmentManager → Equipment Effects → Player Stats Modification
+
+Manager Dependencies:
+- Player needs: equipment_manager, fireball_manager, iceball_manager
+- Managers update independently but share data via player object
+- All projectile/drop managers use common interface patterns
 ```
 
 ### 基類架構
@@ -81,6 +87,11 @@ screen_y = object.y - camera_y + SCREEN_HEIGHT // 2
 def is_in_screen_bounds(self, screen, camera_y):
     screen_y = self.y - camera_y + screen.get_height() // 2
     return -50 <= screen_y <= screen.get_height() + 50
+
+# 管理器依賴注入模式 - Player 需要管理器引用
+player.set_equipment_manager(equipment_manager)
+player.set_fireball_manager(fireball_manager)
+player.set_iceball_manager(iceball_manager)
 ```
 
 ## 🎯 常見開發模式
@@ -145,6 +156,8 @@ python main.py
 - **快速測試**: 暫時註解 `clock.tick(FPS)` 加速執行
 - **碰撞可視化**: 在 render 方法中繪製 `get_collision_rect()`
 - **相機除錯**: 調整 `camera_smoothing` 值（0.05-0.2）控制跟隨平滑度
+- **效能監控**: 按 `F12` 開啟內建 FPS/記憶體監控器
+- **強制掉落測試**: 按 `F10` 強制掉落三種藥水（測試收集系統）
 
 ### 常用除錯快捷鍵
 
@@ -152,6 +165,10 @@ python main.py
 - `Q`: 重置當前關卡
 - `ESC`: 暫停/恢復遊戲
 - `1-4`: 套裝技能測試（需要對應套裝）
+- `F12`: 開啟/關閉效能監控器 (FPS/記憶體)
+- `F10`: 強制掉落測試藥水（開發測試用）
+- `F1-F5`: 快速跳轉關卡 1-5（測試用）
+- `1-3 鍵`: 使用藥水（攻擊/護盾/治療藥水）
 
 ### 角色能力速查
 
@@ -211,5 +228,19 @@ python main.py
 - **死區機制**：5 像素死區減少微抖動
 - **攝影機同步**：所有 render 方法統一使用 `camera_y + SCREEN_HEIGHT // 2` 計算螢幕座標
 - **立即更新**：關卡切換和重置時立即設定相機位置，避免跳躍
+
+### 效能監控系統
+
+- 內建 `GamePerformanceMonitor` 類別，監控 FPS 和記憶體使用
+- 按 `F12` 切換顯示，即時查看效能資訊和警告
+- 自動檢測效能問題（FPS < 45, 記憶體 > 200MB）
+- 3 秒歷史記錄用於計算平均效能指標
+
+### 藥水系統整合
+
+- `PotionDropManager` 處理藥水掉落和收集
+- 三種藥水：治療（綠）、護盾（藍）、攻擊（紅）
+- 數字鍵 1-3 使用對應藥水，按 F10 測試掉落
+- 藥水效果與玩家狀態緊密整合，支援疊加和時限
 
 當需要擴展功能時，優先查閱對應的基類和管理器，遵循既有模式可確保系統整合性。
