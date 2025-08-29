@@ -223,6 +223,12 @@ class BaseEnemy(ABC):
         參數:\n
         platforms (list): 當前關卡的平台列表，用於碰撞檢測\n
         """
+        # 檢查敵人是否掉落到底部平台以下（摔死檢測）
+        if platforms and self._check_fall_death(platforms):
+            # 敵人摔死了，標記為死亡
+            self._die_from_fall()
+            return  # 死亡敵人不再進行物理計算
+
         # 如果站在移動平台上，先跟隨平台移動
         if self.standing_on_moving_platform:
             # 檢查是否還站在平台上
@@ -749,6 +755,70 @@ class BaseEnemy(ABC):
                 return False  # 有平台，不是懸崖
 
         return True  # 沒有平台，是懸崖
+
+    def _check_fall_death(self, platforms) -> bool:
+        """
+        檢查敵人是否掉落到底部平台以下（摔死檢測）\n
+        \n
+        當敵人的位置低於底部平台一定距離時，判定為摔死\n
+        底部平台在所有關卡中都是座標 y=750 的長平台\n
+        \n
+        參數:\n
+        platforms (list): 平台列表\n
+        \n
+        回傳:\n
+        bool: 是否應該因摔落而死亡\n
+        """
+        if not platforms:
+            return False
+
+        # 在所有關卡中，底部平台都是第一個平台，座標為 (0, 750, 1200, 50)
+        ground_platform = platforms[0] if platforms else None
+        
+        # 確保我們找到的確實是底部平台（檢查Y座標和寬度）
+        if ground_platform and ground_platform.y == 750 and ground_platform.width >= 1000:
+            # 底部平台的底部座標是 750 + 50 = 800
+            ground_bottom_y = ground_platform.y + ground_platform.height
+            
+            # 如果敵人掉落到底部平台下方超過50像素，就算摔死
+            fall_death_threshold = ground_bottom_y + 50  # 800 + 50 = 850
+            
+            # 檢查敵人是否掉落過深
+            if self.y > fall_death_threshold:
+                return True
+        
+        return False
+
+    def _die_from_fall(self):
+        """
+        處理敵人因摔落而死亡\n
+        \n
+        當敵人掉落到底部平台以下時呼叫，\n
+        立即標記敵人死亡並停止所有移動\n
+        """
+        if self.is_dead:
+            return  # 已經死了，不用重複處理
+            
+        # 標記為死亡
+        self.is_dead = True
+        self.health = 0
+        self.ai_state = "dead"
+        
+        # 停止所有移動和物理效果
+        self.velocity_x = 0
+        self.velocity_y = 0
+        self.is_on_ground = False
+        
+        # 清除特殊狀態
+        self.is_burning = False
+        self.is_stunned = False
+        self.standing_on_moving_platform = None
+        
+        # 開始死亡動畫計時
+        self.death_timer = 0
+        
+        # 可選：播放摔死音效或特效
+        # 這裡可以加入額外的視覺或聲音效果
 
     def _emergency_reset(self):
         """
