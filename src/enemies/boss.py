@@ -199,7 +199,7 @@ class Boss(BaseEnemy):
         """
         更新 Boss AI 邏輯\n
         \n
-        Boss 有更複雜的 AI 行為模式\n
+        Boss 有更複雜的 AI 行為模式，可以在整個關卡中自由移動\n
         \n
         參數:\n
         player: 玩家物件\n
@@ -220,57 +220,89 @@ class Boss(BaseEnemy):
 
         # 執行對應的行為
         if self.state == "patrol":
-            self._patrol_behavior()
+            self._enhanced_patrol_behavior()
         elif self.state == "chase":
-            self._chase_behavior(player)
+            self._enhanced_chase_behavior(player)
         elif self.state == "attack":
             self._attack_behavior(player)
 
-    def _patrol_behavior(self):
+    def _enhanced_patrol_behavior(self):
         """
-        Boss 巡邏行為\n
+        增強的 Boss 巡邏行為\n
         \n
-        Boss 在指定範圍內緩慢移動，觀察周圍環境\n
+        Boss 在整個關卡範圍內巡邏，不受傳統巡邏範圍限制\n
         """
-        # Boss 巡邏速度比普通敵人慢一些，更具威脅感
-        patrol_speed = self.speed * 0.3
+        # Boss 可以在整個關卡水平範圍內巡邏（0-1200）
+        boss_speed = self.speed * 0.4
+        
+        # 巡邏方向管理
+        if not hasattr(self, 'patrol_target_x'):
+            self.patrol_target_x = random.randint(100, 1100)  # 隨機巡邏目標
+            self.patrol_change_timer = random.randint(180, 300)  # 3-5秒後改變目標
+        
+        # 朝目標移動
+        dx = self.patrol_target_x - self.x
+        if abs(dx) > 20:
+            if dx > 0:
+                self.velocity_x = boss_speed
+                self.facing_direction = 1
+            else:
+                self.velocity_x = -boss_speed
+                self.facing_direction = -1
+        else:
+            self.velocity_x = 0
+            
+        # 更新巡邏目標
+        self.patrol_change_timer -= 1
+        if self.patrol_change_timer <= 0:
+            self.patrol_target_x = random.randint(100, 1100)
+            self.patrol_change_timer = random.randint(180, 300)
+            
+        # 如果卡在邊界，調整目標
+        if self.x <= 50:
+            self.patrol_target_x = random.randint(200, 600)
+        elif self.x >= 1150:
+            self.patrol_target_x = random.randint(600, 1000)
 
-        # 到達巡邏邊界時轉向
-        if self.x <= self.patrol_center_x - self.patrol_range:
-            self.patrol_direction = 1
-        elif self.x >= self.patrol_center_x + self.patrol_range:
-            self.patrol_direction = -1
-
-        # 設定巡邏速度
-        self.velocity_x = self.patrol_direction * patrol_speed
-
-    def _chase_behavior(self, player):
+    def _enhanced_chase_behavior(self, player):
         """
-        Boss 追蹤行為\n
+        增強的 Boss 追蹤行為\n
         \n
-        Boss 朝玩家方向移動，但保持一定的策略性\n
+        Boss 積極追蹤玩家，可以跳躍到不同平台\n
         \n
         參數:\n
         player: 玩家物件\n
         """
-        # Boss 追蹤時會根據階段調整速度
-        chase_speed = self.speed * (0.8 + 0.1 * self.phase)
+        # Boss 追蹤速度根據階段調整
+        chase_speed = self.speed * (0.8 + 0.15 * self.phase)
 
-        # 計算到玩家的水平距離
+        # 計算到玩家的距離
         dx = player.x - self.x
+        dy = player.y - self.y
 
-        # 朝玩家方向移動，但不會過於激進
-        if abs(dx) > 10:  # 避免過度微調
+        # 水平追蹤
+        if abs(dx) > 20:  # 避免過度微調
             if dx > 0:
                 self.velocity_x = chase_speed
+                self.facing_direction = 1
             else:
-                self.velocity_x = -chase_speed
+                self.velocity_x = -chase_speed  
+                self.facing_direction = -1
         else:
             self.velocity_x = 0
 
-        # Boss 在追蹤時會稍微跳躍，增加威脅感
-        if abs(dx) > 60 and self.is_on_ground and random.random() < 0.02:
-            self.velocity_y = -8  # 小跳躍
+        # 垂直追蹤（智能跳躍）
+        if self.is_on_ground and dy < -30 and abs(dx) < 150:  # 玩家在上方且不太遠
+            # Boss 會跳躍追蹤玩家
+            if random.random() < 0.03:  # 3% 機率跳躍，避免過度跳躍
+                self.velocity_y = -12  # 強力跳躍
+                
+        # 如果玩家在下方，Boss 會考慮跳下去（但有條件）
+        elif self.is_on_ground and dy > 50 and abs(dx) < 100:
+            if random.random() < 0.02:  # 2% 機率跳下，更謹慎
+                # 確保不會跳得太遠離地面
+                if self.y < 650:  # 不要從太高的地方跳下
+                    self.velocity_x = dx / abs(dx) * chase_speed * 1.5  # 跳躍時增加水平速度
 
     def _attack_behavior(self, player):
         """
@@ -542,11 +574,32 @@ class Boss(BaseEnemy):
             "special_effects": [],
         }
 
-        # 計算攻擊範圍
-        attack_range = 60
-        distance = abs(player.x - self.x) + abs(player.y - self.y)
-
-        if distance <= attack_range:
+        # 使用更精確的碰撞檢測（矩形碰撞）
+        boss_rect = self.get_collision_rect()
+        player_rect = player.get_collision_rect()
+        
+        # 擴展Boss攻擊範圍（向面對方向延伸）
+        attack_range_x = 60
+        attack_range_y = 40
+        
+        # 根據面對方向調整攻擊範圍
+        if self.facing_direction == 1:  # 面向右
+            attack_rect = pygame.Rect(
+                boss_rect.x, 
+                boss_rect.y - attack_range_y//2, 
+                boss_rect.width + attack_range_x, 
+                boss_rect.height + attack_range_y
+            )
+        else:  # 面向左
+            attack_rect = pygame.Rect(
+                boss_rect.x - attack_range_x, 
+                boss_rect.y - attack_range_y//2, 
+                boss_rect.width + attack_range_x, 
+                boss_rect.height + attack_range_y
+            )
+        
+        # 檢查攻擊範圍內是否有玩家
+        if attack_rect.colliderect(player_rect):
             attack_info["hit"] = True
 
             # 根據當前技能狀態增加特殊效果
@@ -928,11 +981,22 @@ class BossMinion(BaseEnemy):
             "special_effects": [],
         }
 
-        # 檢查攻擊範圍
-        attack_range = 35
-        distance = abs(player.x - self.x) + abs(player.y - self.y)
-
-        if distance <= attack_range:
+        # 使用矩形碰撞檢測，比距離檢測更精確
+        minion_rect = self.get_collision_rect()
+        player_rect = player.get_collision_rect()
+        
+        # 擴展小兵攻擊範圍
+        attack_range_x = 35
+        attack_range_y = 20
+        
+        attack_rect = pygame.Rect(
+            minion_rect.x - attack_range_x//2, 
+            minion_rect.y - attack_range_y//2, 
+            minion_rect.width + attack_range_x, 
+            minion_rect.height + attack_range_y
+        )
+        
+        if attack_rect.colliderect(player_rect):
             attack_info["hit"] = True
 
         return attack_info

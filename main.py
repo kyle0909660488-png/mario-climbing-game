@@ -263,8 +263,39 @@ class MarioClimbingGame:
                         self._reset_current_level()
                     continue
 
-                # F5 鍵按下測試藥水掉落（在玩家附近掉落所有類型的藥水）
+                # F12 鍵切換效能顯示
+                elif event.key == pygame.K_F12:
+                    self.performance_monitor.toggle_display()
+                    continue
+
+                # F1-F6 鍵快速跳轉關卡（測試用途）
+                elif event.key == pygame.K_F1:
+                    if self.game_state == "playing" and self.player:
+                        self._jump_to_level(1)
+                    continue
+                elif event.key == pygame.K_F2:
+                    if self.game_state == "playing" and self.player:
+                        self._jump_to_level(2)
+                    continue
+                elif event.key == pygame.K_F3:
+                    if self.game_state == "playing" and self.player:
+                        self._jump_to_level(3)
+                    continue
+                elif event.key == pygame.K_F4:
+                    if self.game_state == "playing" and self.player:
+                        self._jump_to_level(4)
+                    continue
                 elif event.key == pygame.K_F5:
+                    if self.game_state == "playing" and self.player:
+                        self._jump_to_level(5)
+                    continue
+                elif event.key == pygame.K_F6:
+                    if self.game_state == "playing" and self.player:
+                        self._jump_to_level(6)
+                    continue
+
+                # 測試藥水掉落鍵改為 F10
+                elif event.key == pygame.K_F10:
                     if self.game_state == "playing" and self.player:
                         # 強制掉落三種藥水各一個，方便測試
                         self.potion_drop_manager.force_drop_potion(
@@ -279,11 +310,6 @@ class MarioClimbingGame:
                         print(
                             "測試藥水已掉落！治療藥水(左)、護盾藥水(中)、攻擊藥水(右)"
                         )
-                    continue
-
-                # F12 鍵切換效能顯示
-                elif event.key == pygame.K_F12:
-                    self.performance_monitor.toggle_display()
                     continue
 
                 # 1鍵使用攻擊藥水
@@ -450,6 +476,48 @@ class MarioClimbingGame:
         self.potion_drop_manager.clear_all()
         self.fireball_manager.clear_all()  # 重置時清空所有火球
         self.iceball_manager.clear_all()  # 重置時清空所有冰球
+
+    def _jump_to_level(self, target_level: int):
+        """
+        快速跳轉到指定關卡（測試用途）\n
+        \n
+        這個方法讓開發者可以快速跳到任意關卡進行測試，\n
+        會自動處理玩家位置、相機位置和關卡狀態的重置\n
+        \n
+        參數:\n
+        target_level (int): 目標關卡編號，範圍 1-6\n
+        """
+        # 使用關卡管理器跳轉到目標關卡
+        if self.level_manager.jump_to_level(target_level):
+            # 取得新關卡的起始位置
+            new_level = self.level_manager.get_current_level()
+            
+            # 重置玩家位置和狀態
+            self.player.x = new_level.player_start_x
+            self.player.y = new_level.player_start_y
+            self.player.velocity_x = 0
+            self.player.velocity_y = 0
+            self.player.is_on_ground = False
+            self.player.can_double_jump = self.player.has_double_jump_ability
+            self.player.is_crouching = False
+            self.player.is_sprinting = False
+            self.player.attack_cooldown = 0
+            self.player.is_attacking = False
+            self.player.invulnerability_time = 0
+            self.player.previous_jump_key_pressed = False
+            self.player.jump_buffer_time = 0
+            
+            # 立即更新相機位置到玩家新位置，避免跳關時的視角跳躍
+            self.camera_y = self.player.y - SCREEN_HEIGHT // 2
+            
+            # 清空所有掉落物和投射物，保持關卡環境乾淨
+            self.potion_drop_manager.clear_all()
+            self.fireball_manager.clear_all()
+            self.iceball_manager.clear_all()
+            
+            print(f"已跳轉到第 {target_level} 關")
+        else:
+            print(f"跳轉到第 {target_level} 關失敗")
 
     def update(self):
         """

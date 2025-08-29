@@ -490,10 +490,32 @@ class IceballManager:
         for iceball in self.iceballs[:]:  # 使用切片複製避免迭代時修改列表
             iceball.update(platforms, screen_width)
 
-            # 檢查與敵人的碰撞
-            for enemy in enemies:
-                if not enemy.is_dead:
-                    iceball.check_enemy_collision(enemy)
+            # 檢查與敵人的碰撞 - 按距離排序優先處理最近的敵人
+            if iceball.is_active:
+                # 計算冰球到每個敵人的距離，按距離排序
+                iceball_center_x = iceball.x + iceball.width // 2
+                iceball_center_y = iceball.y + iceball.height // 2
+                
+                enemies_with_distance = []
+                for enemy in enemies:
+                    if not enemy.is_dead:
+                        enemy_rect = enemy.get_collision_rect()
+                        enemy_center_x = enemy_rect.x + enemy_rect.width // 2
+                        enemy_center_y = enemy_rect.y + enemy_rect.height // 2
+                        
+                        # 計算到冰球的距離
+                        distance = ((enemy_center_x - iceball_center_x) ** 2 + 
+                                  (enemy_center_y - iceball_center_y) ** 2) ** 0.5
+                        
+                        enemies_with_distance.append((distance, enemy))
+                
+                # 按距離排序，最近的優先處理
+                enemies_with_distance.sort(key=lambda x: x[0])
+                
+                # 依距離順序檢查碰撞，一旦擊中就停止
+                for distance, enemy in enemies_with_distance:
+                    if iceball.check_enemy_collision(enemy):
+                        break  # 冰球擊中一個敵人後就消失，不再檢查其他敵人
 
         # 移除無效的冰球
         self.iceballs = [ib for ib in self.iceballs if ib.is_active]

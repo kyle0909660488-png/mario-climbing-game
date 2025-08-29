@@ -601,3 +601,38 @@ class LevelManager:
         bool: 是否需要擊敗所有敵人\n
         """
         return self.difficulty == "hard"
+
+    def jump_to_level(self, target_level: int) -> bool:
+        """
+        直接跳轉到指定關卡（測試用途）\n
+        \n
+        這個方法讓開發者可以快速跳到任意關卡進行測試，\n
+        會重置該關卡的狀態並將玩家傳送到該關卡的起始位置\n
+        \n
+        參數:\n
+        target_level (int): 目標關卡編號，範圍 1-6\n
+        \n
+        回傳:\n
+        bool: 是否成功跳轉到目標關卡\n
+        """
+        # 檢查關卡編號是否有效
+        if not (1 <= target_level <= self.max_level):
+            print(f"無效的關卡編號: {target_level}，有效範圍是 1-{self.max_level}")
+            return False
+
+        # 如果已經在目標關卡，只重置關卡狀態
+        if self.current_level_number == target_level:
+            current_level = self.get_current_level()
+            current_level.reset()
+            print(f"重置第 {target_level} 關")
+            return True
+
+        # 切換到目標關卡
+        self.current_level_number = target_level
+        
+        # 重置目標關卡的狀態（清除死亡的敵人、重置陷阱等）
+        target_level_obj = self.get_current_level()
+        target_level_obj.reset()
+        
+        print(f"跳轉到第 {target_level} 關")
+        return True
